@@ -1,0 +1,63 @@
+Metrics/BlockLength:
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+    - method_call
+
+Style/Documentation:
+  Enabled: false
+
+Style/TrailingCommaInArguments:
+  Enabled: false
+
+Style/TrailingCommaInHashLiteral:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Style/GuardClause:
+  Enabled: false
+
+Style/SignalException:
+  EnforcedStyle: semantic
+
+Style/NegatedIf:
+  Enabled: false
+
+#######
+# Options that rubocop explicitly asked us to set
+#######
+
+Style/HashEachMethods:
+  Enabled: true
+
+Style/HashTransformKeys:
+  Enabled: true
+
+Style/HashTransformValues:
+  Enabled: true
+
+#######
+# Options that are important to sync with syntax_tree
+#######
+
+Layout/LineLength:
+  Max: 100
+
+#######
+# Cops that are overridden by syntax_tree, but we'd rather just let syntax_tree format them away
+#######
+
+Style/EmptyMethod:
+  Enabled: false
+
+Style/StringLiterals:
+  Enabled: false
+
+Style/StringLiteralsInInterpolation:
+  Enabled: false
+
+Style/QuotedSymbols:
+  Enabled: false
