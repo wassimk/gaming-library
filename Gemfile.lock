@@ -3,6 +3,7 @@ GEM
   specs:
     ast (2.4.2)
     awesome_print (1.9.2)
+    dotenv (3.1.4)
     json (2.7.5)
     language_server-protocol (3.17.0.3)
     parallel (1.26.3)
@@ -36,6 +37,7 @@ PLATFORMS
 
 DEPENDENCIES
   awesome_print
+  dotenv
   rubocop
   syntax_tree
 

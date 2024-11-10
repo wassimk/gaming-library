@@ -1,21 +1,17 @@
 #!/usr/bin/env ruby
 
+require "dotenv/load"
 require "awesome_print"
 require "net/http"
 require "json"
 require "uri"
-
-# Constants
-STEAM_API_KEY = "key".freeze
-STEAM_USER_ID = "key".freeze
-NOTION_API_KEY = "key".freeze
-NOTION_DATABASE_ID = "key".freeze
+require "debug"
 
 # Method to query the Steam API
-def fetch_owned_steam_games
+def fetch_steam_owned_games
   uri =
     URI(
-      "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=#{STEAM_API_KEY}&steamid=#{STEAM_USER_ID}&include_appinfo=true",
+      "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=#{ENV["STEAM_API_KEY"]}&steamid=#{ENV["STEAM_USER_ID"]}&include_appinfo=true",
     )
   response = Net::HTTP.get(uri)
   JSON.parse(response)
@@ -27,7 +23,7 @@ def fetch_steam_game_details(appid)
   JSON.parse(response)
 end
 
-def parse_games(response)
+def parse_steam_games(response)
   games = response["response"]["games"]
   games.map do |game|
     icon =
@@ -42,9 +38,9 @@ def parse_games(response)
 end
 
 def fetch_notion_games # rubocop:disable Metrics/MethodLength
-  uri = URI("https://api.notion.com/v1/databases/#{NOTION_DATABASE_ID}/query")
+  uri = URI("https://api.notion.com/v1/databases/#{ENV["NOTION_DATABASE_ID"]}/query")
   header = {
-    Authorization: "Bearer #{NOTION_API_KEY}",
+    Authorization: "Bearer #{ENV["NOTION_API_KEY"]}",
     "Content-Type": "application/json",
     "Notion-Version": "2022-06-28",
   }
@@ -61,7 +57,7 @@ end
 def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
   uri = URI("https://api.notion.com/v1/pages")
   header = {
-    Authorization: "Bearer #{NOTION_API_KEY}",
+    Authorization: "Bearer #{ENV["NOTION_API_KEY"]}",
     "Content-Type": "application/json",
     "Notion-Version": "2022-06-28",
   }
@@ -73,9 +69,6 @@ def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
 
   games.each do |game|
     body = {
-      parent: {
-        database_id: NOTION_DATABASE_ID,
-      },
       properties: {
         Name: {
           title: [{ text: { content: game[:name] } }],
@@ -87,33 +80,44 @@ def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
           number: game[:steam_id],
         },
       },
-    }.to_json
+    }
 
-    page_id = notion_games_map[game[:steam_id]]
-    uri = URI("https://api.notion.com/v1/pages/#{page_id}")
+    uri = nil
 
     request =
       if notion_games_map.key?(game[:steam_id])
+        page_id = notion_games_map[game[:steam_id]]
+        uri = URI("https://api.notion.com/v1/pages/#{page_id}")
         Net::HTTP::Patch.new(uri.path, header)
       else
+        puts "Game does not exist in Notion: #{game[:name]}"
+        uri = URI("https://api.notion.com/v1/pages")
+        body[:parent] = { database_id: ENV["NOTION_DATABASE_ID"] }
         Net::HTTP::Post.new(uri.path, header)
       end
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true
-    request.body = body
+    request.body = body.to_json
+
     response = http.request(request)
-    puts "Upserted Notion for game: #{game[:name]}" if response.code == "200"
+    if response.code == "200"
+      puts "Upserted Notion for game: #{game[:name]}"
+    else
+      puts "API error upserting Notion for game: #{game[:name]}"
+      binding.break
+      exit
+    end
   rescue StandardError => e
-    puts "Error upserting Notion for game: #{game[:name]}"
+    puts "Program error upserting Notion for game: #{game[:name]}"
     puts e.message
+    exit
   end
 end
 
 def update_notion_database(games, notion_games)
-  uri = URI("https://api.notion.com/v1/pages")
   header = {
-    Authorization: "Bearer #{NOTION_API_KEY}",
+    Authorization: "Bearer #{ENV["NOTION_API_KEY"]}",
     "Content-Type": "application/json",
     "Notion-Version": "2022-06-28",
   }
@@ -171,11 +175,11 @@ def update_notion_database(games, notion_games)
 end
 
 def main
-  steam_response = fetch_owned_steam_games
-  games = parse_games(steam_response)
+  steam_games = fetch_steam_owned_games
+  games = parse_steam_games(steam_games)
   notion_response = fetch_notion_games
-  # upsert_notion_database(games, notion_response)
-  update_notion_database(games, notion_response)
+  upsert_notion_database(games, notion_response)
+  # update_notion_database(games, notion_response)
 end
 
 main if __FILE__ == $PROGRAM_NAME
