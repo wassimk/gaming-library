@@ -44,14 +44,29 @@ def fetch_notion_games # rubocop:disable Metrics/MethodLength
     "Content-Type": "application/json",
     "Notion-Version": "2022-06-28",
   }
-  body = {}.to_json
 
-  http = Net::HTTP.new(uri.host, uri.port)
-  http.use_ssl = true
-  request = Net::HTTP::Post.new(uri.path, header)
-  request.body = body
-  response = http.request(request)
-  JSON.parse(response.body)
+  all_results = []
+  has_more = true
+  start_cursor = nil
+
+  while has_more
+    body = {}
+    body[:start_cursor] = start_cursor if start_cursor
+    body = body.to_json
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
+    request = Net::HTTP::Post.new(uri.path, header)
+    request.body = body
+    response = http.request(request)
+    data = JSON.parse(response.body)
+
+    all_results.concat(data["results"])
+    has_more = data["has_more"]
+    start_cursor = data["next_cursor"]
+  end
+
+  { "results" => all_results }
 end
 
 def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
@@ -105,13 +120,11 @@ def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
       puts "Upserted Notion for game: #{game[:name]}"
     else
       puts "API error upserting Notion for game: #{game[:name]}"
-      binding.break
       exit
     end
   rescue StandardError => e
     puts "Program error upserting Notion for game: #{game[:name]}"
     puts e.message
-    exit
   end
 end
 
@@ -130,34 +143,46 @@ def update_notion_database(games, notion_games)
   games.each do |game|
     game_details = fetch_steam_game_details(game[:steam_id])
     details = game_details[game[:steam_id].to_s]["data"]
-    publishers = details["publishers"]&.join(", ").to_s
-    developers = details["developers"]&.join(", ").to_s
-    genres = details["genres"].map { |genre| genre["description"] }&.join(", ").to_s
+    publishers = details["publishers"]
+    developers = details["developers"]
+    genres = details["genres"].map { |genre| genre["description"] }
 
-    body = {
-      properties: {
-        Publishers: {
-          rich_text: [{ type: "text", text: { content: publishers, link: nil } }],
-        },
-        Developers: {
-          rich_text: [{ type: "text", text: { content: developers, link: nil } }],
-        },
-        Genres: {
-          rich_text: [{ type: "text", text: { content: genres, link: nil } }],
-        },
-      },
-    }.to_json
+    ap "#{game[:name]} - #{game[:steam_id]}"
+    ap publishers&.join(", ")
+    ap developers&.join(", ")
+    ap genres&.join(", ")
+
+    properties = {}
+    if !publishers.nil?
+      properties[:Publishers] = {
+        multi_select: publishers.map { |publisher| { name: publisher.gsub(",", "") } },
+      }
+    end
+    if !developers.nil?
+      properties[:Developers] = {
+        multi_select: developers.map { |developer| { name: developer.gsub(",", "") } },
+      }
+    end
+    if !genres.nil?
+      properties[:Genres] = { multi_select: genres.map { |genre| { name: genre.gsub(",", "") } } }
+    end
+
+    body = { properties: properties }.to_json
 
     page_id = notion_games_map[game[:steam_id]]
+
+    if page_id.nil?
+      puts "Game does not exist in Notion: #{game[:name]}"
+      next
+    end
+
     uri = URI("https://api.notion.com/v1/pages/#{page_id}")
-
-    next unless notion_games_map.key?(game[:steam_id])
-
     request = Net::HTTP::Patch.new(uri.path, header)
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true
     request.body = body
     response = http.request(request)
+
     if response.code == "200"
       puts "Updated Notion for game: #{game[:name]}"
     else
@@ -178,8 +203,8 @@ def main
   steam_games = fetch_steam_owned_games
   games = parse_steam_games(steam_games)
   notion_response = fetch_notion_games
-  upsert_notion_database(games, notion_response)
-  # update_notion_database(games, notion_response)
+  # upsert_notion_database(games, notion_response)
+  update_notion_database(games, notion_response)
 end
 
 main if __FILE__ == $PROGRAM_NAME
