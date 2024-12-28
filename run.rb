@@ -6,6 +6,16 @@ require "net/http"
 require "json"
 require "uri"
 require "debug"
+require "date"
+
+LOG_LEVEL = ENV["LOG_LEVEL"] || "error"
+
+def fetch_deku_games
+  uri = URI("https://www.dekudeals.com/collection/#{ENV["DEKU_DEALS_COLLECTION_ID"]}.json")
+  response = Net::HTTP.get(uri)
+
+  JSON.parse(response)
+end
 
 # Method to query the Steam API
 def fetch_steam_owned_games
@@ -26,12 +36,16 @@ end
 def parse_steam_games(response)
   games = response["response"]["games"]
   games.map do |game|
-    icon =
+    icon_url =
       "http://media.steampowered.com/steamcommunity/public/images/apps/#{game["appid"]}/#{game["img_icon_url"]}.jpg"
+    last_played_date =
+      (game["rtime_last_played"].positive? ? Time.at(game["rtime_last_played"]) : nil)
+
     {
       name: game["name"],
       playtime_forever: game["playtime_forever"],
-      icon: icon,
+      last_played_date: last_played_date,
+      icon_url: icon_url,
       steam_id: game["appid"],
     }
   end
@@ -69,7 +83,7 @@ def fetch_notion_games # rubocop:disable Metrics/MethodLength
   { "results" => all_results }
 end
 
-def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+def insert_notion_database(games, notion_games) # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
   uri = URI("https://api.notion.com/v1/pages")
   header = {
     Authorization: "Bearer #{ENV["NOTION_API_KEY"]}",
@@ -82,13 +96,19 @@ def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
       .map { |page| [page["properties"]["Steam ID"]["number"], page["id"]] }
       .to_h
 
+  puts "=" * 80
+  puts "Inserting Notion database"
+  puts "Working with #{notion_games_map.count} Notion games"
+  puts "Working with #{games.count} Steam games"
+  puts "=" * 80
+
   games.each do |game|
     body = {
       properties: {
         Name: {
           title: [{ text: { content: game[:name] } }],
         },
-        Playtime: {
+        "Playtime (Minutes)": {
           number: game[:playtime_forever],
         },
         "Steam ID": {
@@ -99,13 +119,12 @@ def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
 
     uri = nil
 
+    next if notion_games_map.key?(game[:steam_id]) # game already exists in Notion
+    # exclude this game
+    next if ENV["STEAM_EXCLUDE_GAME_IDS"].split(",").include?(game[:steam_id].to_s)
+
     request =
-      if notion_games_map.key?(game[:steam_id])
-        page_id = notion_games_map[game[:steam_id]]
-        uri = URI("https://api.notion.com/v1/pages/#{page_id}")
-        Net::HTTP::Patch.new(uri.path, header)
-      else
-        puts "Game does not exist in Notion: #{game[:name]}"
+      begin
         uri = URI("https://api.notion.com/v1/pages")
         body[:parent] = { database_id: ENV["NOTION_DATABASE_ID"] }
         Net::HTTP::Post.new(uri.path, header)
@@ -117,14 +136,14 @@ def upsert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
 
     response = http.request(request)
     if response.code == "200"
-      puts "Upserted Notion for game: #{game[:name]}"
+      puts "Added Notion entry for game: #{game[:name]} - #{game[:steam_id]}"
     else
-      puts "API error upserting Notion for game: #{game[:name]}"
-      exit
+      puts "API error adding Notion entry for game: #{game[:name]} - #{game[:steam_id]}"
     end
   rescue StandardError => e
-    puts "Program error upserting Notion for game: #{game[:name]}"
+    puts "Program error adding Notion entry for game: #{game[:name]} - #{game[:steam_id]}"
     puts e.message
+    binding.break
   end
 end
 
@@ -140,17 +159,42 @@ def update_notion_database(games, notion_games)
       .map { |page| [page["properties"]["Steam ID"]["number"], page["id"]] }
       .to_h
 
+  puts "=" * 80
+  puts "Updating Notion database"
+  puts "Working with #{notion_games_map.count} Notion games"
+  puts "Working with #{games.count} Steam games"
+  puts "=" * 80
+
   games.each do |game|
     game_details = fetch_steam_game_details(game[:steam_id])
+
+    if game_details[game[:steam_id].to_s]["success"] == false
+      puts "Game details API call for #{game[:name]} failed"
+      next
+    end
+
     details = game_details[game[:steam_id].to_s]["data"]
     publishers = details["publishers"]
     developers = details["developers"]
     genres = details["genres"].map { |genre| genre["description"] }
+    release_date =
+      begin
+        Date.parse(details["release_date"]["date"].scan(/[,\w+\s]/).join)
+      rescue StandardError # some games have bad dates like Warhammer 40K: Space Marine II
+        nil
+      end
+    last_played_date = game[:last_played_date]
+    icon_url = game[:icon_url]
+    logo_url = details["capsule_imagev5"]
 
-    ap "#{game[:name]} - #{game[:steam_id]}"
-    ap publishers&.join(", ")
-    ap developers&.join(", ")
-    ap genres&.join(", ")
+    # ap "#{game[:name]} - #{game[:steam_id]}"
+    # ap icon_url
+    # ap logo_url
+    # ap publishers&.join(", ")
+    # ap developers&.join(", ")
+    # ap genres&.join(", ")
+    # ap release_date.to_s + " from " + details["release_date"]["date"]
+    # ap last_played_date
 
     properties = {}
     if !publishers.nil?
@@ -166,6 +210,23 @@ def update_notion_database(games, notion_games)
     if !genres.nil?
       properties[:Genres] = { multi_select: genres.map { |genre| { name: genre.gsub(",", "") } } }
     end
+
+    properties["Release Date".to_sym] = { date: { start: release_date.to_s } } if !release_date.nil?
+
+    if !icon_url.nil?
+      properties["Icon".to_sym] = {
+        files: [
+          # { name: "icon", type: "external", external: { url: icon_url } },
+          { name: "logo", type: "external", external: { url: logo_url } },
+        ],
+      }
+    end
+
+    if !last_played_date.nil?
+      properties["Last Played Date".to_sym] = { date: { start: last_played_date.to_date.to_s } }
+    end
+
+    properties["Playtime (Minutes)".to_sym] = { number: game[:playtime_forever] }
 
     body = { properties: properties }.to_json
 
@@ -184,18 +245,19 @@ def update_notion_database(games, notion_games)
     response = http.request(request)
 
     if response.code == "200"
-      puts "Updated Notion for game: #{game[:name]}"
+      puts "Updated Notion for game: #{game[:name]} - #{game[:steam_id]}"
     else
       puts uri
       puts JSON.parse(request.body)
-      puts "API error updating Notion for game: #{game[:name]}"
-      exit
+      puts "API error updating Notion for game: #{game[:name]} - #{game[:steam_id]}"
+      puts response.body
+      binding.break
     end
     sleep 1
   rescue StandardError => e
-    puts "Program error updating Notion for game: #{game[:name]}"
+    puts "Program error updating Notion for game: #{game[:name]} - #{game[:steam_id]}"
     puts e.message
-    exit
+    binding.break
   end
 end
 
@@ -203,7 +265,7 @@ def main
   steam_games = fetch_steam_owned_games
   games = parse_steam_games(steam_games)
   notion_response = fetch_notion_games
-  # upsert_notion_database(games, notion_response)
+  insert_notion_database(games, notion_response)
   update_notion_database(games, notion_response)
 end
 
