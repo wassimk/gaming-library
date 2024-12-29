@@ -10,14 +10,26 @@ require "date"
 
 LOG_LEVEL = ENV["LOG_LEVEL"] || "error"
 
-def fetch_deku_games
-  uri = URI("https://www.dekudeals.com/collection/#{ENV["DEKU_DEALS_COLLECTION_ID"]}.json")
-  response = Net::HTTP.get(uri)
-
-  JSON.parse(response)
+def steam_games
+  @steam_games ||=
+    fetch_steam_owned_games.then { |response| parse_fetch_steam_games_response(response) }
 end
 
-# Method to query the Steam API
+def excluded_steam_games
+  @excluded_steam_games ||=
+    begin
+      excluded_steam_games_ids = ENV["STEAM_EXCLUDE_GAME_IDS"].split(",").map(&:strip).map(&:to_i)
+
+      steam_games
+        .select { |game| excluded_steam_games_ids.include?(game[:steam_id]) }
+        .sort_by { |game| game[:name] }
+    end
+end
+
+def excluded_steam_game?(game)
+  excluded_steam_games.map { |game| game[:steam_id] }.include?(game[:steam_id])
+end
+
 def fetch_steam_owned_games
   uri =
     URI(
@@ -33,7 +45,7 @@ def fetch_steam_game_details(appid)
   JSON.parse(response)
 end
 
-def parse_steam_games(response)
+def parse_fetch_steam_games_response(response)
   games = response["response"]["games"]
   games.map do |game|
     icon_url =
@@ -51,7 +63,14 @@ def parse_steam_games(response)
   end
 end
 
-def fetch_notion_games # rubocop:disable Metrics/MethodLength
+def fetch_deku_games
+  uri = URI("https://www.dekudeals.com/collection/#{ENV["DEKU_DEALS_COLLECTION_ID"]}.json")
+  response = Net::HTTP.get(uri)
+
+  JSON.parse(response)
+end
+
+def fetch_notion_games
   uri = URI("https://api.notion.com/v1/databases/#{ENV["NOTION_DATABASE_ID"]}/query")
   header = {
     Authorization: "Bearer #{ENV["NOTION_API_KEY"]}",
@@ -80,10 +99,10 @@ def fetch_notion_games # rubocop:disable Metrics/MethodLength
     start_cursor = data["next_cursor"]
   end
 
-  { "results" => all_results }
+  all_results
 end
 
-def insert_notion_database(games, notion_games) # rubocop:disable Metrics/MethodLength, Metrics/AbcSize
+def insert_notion_database(steam_games, notion_games)
   uri = URI("https://api.notion.com/v1/pages")
   header = {
     Authorization: "Bearer #{ENV["NOTION_API_KEY"]}",
@@ -92,17 +111,18 @@ def insert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
   }
 
   notion_games_map =
-    notion_games["results"]
-      .map { |page| [page["properties"]["Steam ID"]["number"], page["id"]] }
-      .to_h
+    notion_games.map { |page| [page["properties"]["Steam ID"]["number"], page["id"]] }.to_h
 
   puts "=" * 80
-  puts "Inserting Notion database"
+  puts "Inserting into Notion database"
   puts "Working with #{notion_games_map.count} Notion games"
-  puts "Working with #{games.count} Steam games"
+  puts "Working with #{steam_games.count} Steam games"
+  puts "=" * 80
+  puts "Excluding #{excluded_steam_games.count} Steam games:"
+  puts(excluded_steam_games.map { |game| "#{game[:name]} - #{game[:steam_id]}" })
   puts "=" * 80
 
-  games.each do |game|
+  steam_games.each do |game|
     body = {
       properties: {
         Name: {
@@ -117,23 +137,17 @@ def insert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
       },
     }
 
-    uri = nil
-
     next if notion_games_map.key?(game[:steam_id]) # game already exists in Notion
     # exclude this game
     next if ENV["STEAM_EXCLUDE_GAME_IDS"].split(",").include?(game[:steam_id].to_s)
 
-    request =
-      begin
-        uri = URI("https://api.notion.com/v1/pages")
-        body[:parent] = { database_id: ENV["NOTION_DATABASE_ID"] }
-        Net::HTTP::Post.new(uri.path, header)
-      end
+    uri = URI("https://api.notion.com/v1/pages")
+    request = Net::HTTP::Post.new(uri.path, header)
+    body[:parent] = { database_id: ENV["NOTION_DATABASE_ID"] }
+    request.body = body.to_json
 
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true
-    request.body = body.to_json
-
     response = http.request(request)
     if response.code == "200"
       puts "Added Notion entry for game: #{game[:name]} - #{game[:steam_id]}"
@@ -147,7 +161,7 @@ def insert_notion_database(games, notion_games) # rubocop:disable Metrics/Method
   end
 end
 
-def update_notion_database(games, notion_games)
+def update_notion_database(steam_games, notion_games)
   header = {
     Authorization: "Bearer #{ENV["NOTION_API_KEY"]}",
     "Content-Type": "application/json",
@@ -155,17 +169,15 @@ def update_notion_database(games, notion_games)
   }
 
   notion_games_map =
-    notion_games["results"]
-      .map { |page| [page["properties"]["Steam ID"]["number"], page["id"]] }
-      .to_h
+    notion_games.map { |page| [page["properties"]["Steam ID"]["number"], page["id"]] }.to_h
 
   puts "=" * 80
   puts "Updating Notion database"
   puts "Working with #{notion_games_map.count} Notion games"
-  puts "Working with #{games.count} Steam games"
+  puts "Working with #{steam_games.count} Steam games"
   puts "=" * 80
 
-  games.each do |game|
+  steam_games.each do |game|
     game_details = fetch_steam_game_details(game[:steam_id])
 
     if game_details[game[:steam_id].to_s]["success"] == false
@@ -180,7 +192,7 @@ def update_notion_database(games, notion_games)
     release_date =
       begin
         Date.parse(details["release_date"]["date"].scan(/[,\w+\s]/).join)
-      rescue StandardError # some games have bad dates like Warhammer 40K: Space Marine II
+      rescue StandardError # some steam_games have bad dates like Warhammer 40K: Space Marine II
         nil
       end
     last_played_date = game[:last_played_date]
@@ -232,6 +244,8 @@ def update_notion_database(games, notion_games)
 
     page_id = notion_games_map[game[:steam_id]]
 
+    next if excluded_steam_game?(game)
+
     if page_id.nil?
       puts "Game does not exist in Notion: #{game[:name]}"
       next
@@ -262,11 +276,9 @@ def update_notion_database(games, notion_games)
 end
 
 def main
-  steam_games = fetch_steam_owned_games
-  games = parse_steam_games(steam_games)
   notion_response = fetch_notion_games
-  insert_notion_database(games, notion_response)
-  update_notion_database(games, notion_response)
+  insert_notion_database(steam_games, notion_response)
+  update_notion_database(steam_games, notion_response)
 end
 
 main if __FILE__ == $PROGRAM_NAME
