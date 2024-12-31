@@ -14,7 +14,7 @@ end
 def excluded_steam_games
   @excluded_steam_games ||=
     begin
-      excluded_steam_games_ids = ENV["STEAM_EXCLUDE_GAME_IDS"].split(",").map(&:strip).map(&:to_i)
+      excluded_steam_games_ids = ENV["STEAM_EXCLUDED_GAME_IDS"].split(",").map(&:strip).map(&:to_i)
 
       steam_games
         .select { |game| excluded_steam_games_ids.include?(game[:steam_id]) }

@@ -2,15 +2,15 @@ name: Update Gaming Library
 
 on:
   schedule:
-    - cron: '20 22 * * *'
+    - cron: '15 10 * * *' # 4:15 A.M. CST in UTC
 
-  workflow_dispatch:
+  workflow_dispatch: # allow manual runs in the GitHub UI
 
 jobs:
-  test:
+  execute:
     runs-on: ubuntu-latest
     steps:
-      - name: Close GitHub Repository
+      - name: Clone GitHub Repository
         uses: actions/checkout@v4
 
       - name: Setup Ruby Environment
@@ -18,11 +18,11 @@ jobs:
         with:
           bundler-cache: true
 
-      - name: Execute
+      - name: Run Notion Upserts
         run: bundle exec ruby run.rb
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           STEAM_USER_ID: ${{ secrets.STEAM_USER_ID }}
-          STEAM_EXCLUDE_GAME_IDS: ${{ secrets.STEAM_EXCLUDE_GAME_IDS }}
+          STEAM_EXCLUDED_GAME_IDS: ${{ secrets.STEAM_EXCLUDED_GAME_IDS }}
