@@ -1,5 +1,3 @@
-#!/usr/bin/env ruby
-
 require "dotenv/load"
 require "awesome_print"
 require "net/http"
@@ -7,8 +5,6 @@ require "json"
 require "uri"
 require "debug"
 require "date"
-
-LOG_LEVEL = ENV["LOG_LEVEL"] || "error"
 
 def steam_games
   @steam_games ||=
