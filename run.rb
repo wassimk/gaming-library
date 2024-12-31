@@ -135,7 +135,7 @@ def insert_notion_database(steam_games, notion_games)
 
     next if notion_games_map.key?(game[:steam_id]) # game already exists in Notion
     # exclude this game
-    next if ENV["STEAM_EXCLUDE_GAME_IDS"].split(",").include?(game[:steam_id].to_s)
+    next if excluded_steam_game?(game)
 
     uri = URI("https://api.notion.com/v1/pages")
     request = Net::HTTP::Post.new(uri.path, header)
