@@ -19,7 +19,7 @@ jobs:
           bundler-cache: true
 
       - name: Run Notion Upserts
-        run: bundle exec ruby run.rb
+        run: bundle exec ruby lib/run.rb
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
