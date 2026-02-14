@@ -4,6 +4,8 @@ Automatically sync your Steam game library to a Notion database. New purchases, 
 
 The script runs on a schedule via GitHub Actions: a quick daily sync for playtime changes and new games, plus a monthly full refresh of all game metadata.
 
+![Notion Gaming Library](docs/notion-gaming-library.png)
+
 ## Setup
 
 ### 1. Create a Notion Database
