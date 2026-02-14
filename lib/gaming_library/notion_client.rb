@@ -30,6 +30,28 @@ module GamingLibrary
       all_results
     end
 
+    def fetch_games_by_steam_id(steam_id)
+      body = {
+        filter: {
+          property: "Steam ID",
+          number: { equals: steam_id },
+        },
+      }
+      data = post("/v1/databases/#{@database_id}/query", body)
+      data["results"]
+    end
+
+    def fetch_games_by_name(name)
+      body = {
+        filter: {
+          property: "Name",
+          title: { contains: name },
+        },
+      }
+      data = post("/v1/databases/#{@database_id}/query", body)
+      data["results"]
+    end
+
     def games_map(notion_pages)
       notion_pages.map { |page|
         props = page["properties"]
@@ -213,6 +235,24 @@ module GamingLibrary
       end
       body = { properties: properties }
       patch("/v1/pages/#{page_id}", body)
+    end
+
+    def archive_page(page_id)
+      patch("/v1/pages/#{page_id}", { archived: true })
+    end
+
+    def fetch_all_games_summary
+      fetch_games.map { |page|
+        props = page["properties"]
+        {
+          page_id: page["id"],
+          name: props.dig("Name", "title", 0, "text", "content"),
+          steam_id: props.dig("Steam ID", "number"),
+          deku_deals_id: props.dig("Deku Deals ID", "rich_text", 0, "text", "content"),
+          platforms: (props.dig("Platforms", "multi_select") || []).map { |p| p["name"] },
+          playtime: props.dig("Playtime (Minutes)", "number") || 0,
+        }
+      }
     end
 
     private
