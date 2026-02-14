@@ -319,6 +319,45 @@ module GamingLibrary
       refute_includes @output.string, "Syncing Deku Deals games"
     end
 
+    # --- Game filter tests ---
+
+    def test_game_filter_by_name
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Hades", slug: "hades", added_at: "2025-01-01T00:00:00+00:00", format: "digital" },
+          { name: "Celeste", slug: "celeste", added_at: "2025-01-01T00:00:00+00:00", format: "digital" },
+        ],
+        collection_details: {
+          "hades" => { name: "Hades", platform: "Switch", format: "Digital", image_url: "https://cdn.dekudeals.com/images/abc/w500.jpg" },
+          "celeste" => { name: "Celeste", platform: "Switch", format: "Digital", image_url: "https://cdn.dekudeals.com/images/def/w500.jpg" },
+        },
+      )
+      notion = StubNotionClient.new(pages: [])
+
+      DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, game_filter: "Hades", output: @output).call
+
+      assert_equal 1, notion.inserted_deku_deals_games.length
+      assert_equal "Hades", notion.inserted_deku_deals_games.first[:game][:name]
+      assert_includes @output.string, "Game filter: Hades"
+    end
+
+    def test_game_filter_no_match
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Hades", slug: "hades", added_at: "2025-01-01T00:00:00+00:00", format: "digital" },
+        ],
+        collection_details: {
+          "hades" => { name: "Hades", platform: "Switch", format: "Digital", image_url: nil },
+        },
+      )
+      notion = StubNotionClient.new(pages: [])
+
+      DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, game_filter: "Nonexistent", output: @output).call
+
+      assert_empty notion.inserted_deku_deals_games
+      assert_includes @output.string, "No Deku Deals games matched filter: Nonexistent"
+    end
+
     # --- Error handling ---
 
     def test_error_in_one_game_does_not_halt_sync
@@ -401,6 +440,13 @@ module GamingLibrary
 
       def fetch_games
         @pages
+      end
+
+      def fetch_games_by_name(name)
+        @pages.select { |p|
+          page_name = p["properties"].dig("Name", "title", 0, "text", "content")
+          page_name&.downcase&.include?(name.downcase)
+        }
       end
 
       def games_map_by_name(pages)

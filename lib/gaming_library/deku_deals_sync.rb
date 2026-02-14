@@ -14,21 +14,27 @@ module GamingLibrary
       "Nintendo Switch 2" => "Nintendo Switch",
     }.freeze
 
-    def initialize(deku_deals_client:, notion_client:, full_sync: false, output: $stdout)
+    def initialize(deku_deals_client:, notion_client:, full_sync: false, game_filter: nil, output: $stdout)
       @deku_deals = deku_deals_client
       @notion = notion_client
       @full_sync = full_sync
+      @game_filter = game_filter
       @output = output
     end
 
     def call
-      notion_pages = @notion.fetch_games
+      notion_pages = filtered_notion_pages
       @name_map = @notion.games_map_by_name(notion_pages)
       @deku_id_map = build_deku_id_map
 
       game_list = build_game_list
+      game_list = filter_game_list(game_list)
       if game_list.empty?
-        @output.puts "Deku Deals: no games found in collection (site may have changed)"
+        if @game_filter
+          @output.puts "No Deku Deals games matched filter: #{@game_filter}"
+        else
+          @output.puts "Deku Deals: no games found in collection (site may have changed)"
+        end
         return
       end
 
@@ -38,6 +44,23 @@ module GamingLibrary
     end
 
     private
+
+    def filtered_notion_pages
+      if @game_filter.nil?
+        @notion.fetch_games
+      else
+        @notion.fetch_games_by_name(@game_filter)
+      end
+    end
+
+    def filter_game_list(game_list)
+      return game_list if @game_filter.nil?
+
+      game_list.select { |g|
+        g[:name].downcase.include?(@game_filter.downcase) ||
+          g[:slug] == @game_filter
+      }
+    end
 
     def build_deku_id_map
       @name_map
@@ -167,6 +190,7 @@ module GamingLibrary
       @output.puts "Deku Deals games: #{game_list.count}"
       @output.puts "Notion games: #{@name_map.count}"
       @output.puts "Sync mode: #{@full_sync ? "full" : "incremental"}"
+      @output.puts "Game filter: #{@game_filter}" if @game_filter
       @output.puts "=" * 80
     end
   end

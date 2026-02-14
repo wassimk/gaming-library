@@ -240,6 +240,55 @@ module GamingLibrary
       assert_equal({}, @client.games_map_by_name([]))
     end
 
+    # --- fetch_all_games_summary ---
+
+    def test_fetch_all_games_summary_extracts_fields
+      pages = [
+        {
+          "id" => "page-1",
+          "properties" => {
+            "Name" => { "title" => [{ "text" => { "content" => "Hades" } }] },
+            "Steam ID" => { "number" => 1145360 },
+            "Deku Deals ID" => { "rich_text" => [{ "text" => { "content" => "hades" } }] },
+            "Platforms" => { "multi_select" => [{ "name" => "Steam" }, { "name" => "Nintendo Switch" }] },
+            "Playtime (Minutes)" => { "number" => 120 },
+          },
+        },
+        {
+          "id" => "page-2",
+          "properties" => {
+            "Name" => { "title" => [{ "text" => { "content" => "Celeste" } }] },
+            "Steam ID" => { "number" => nil },
+            "Deku Deals ID" => { "rich_text" => [] },
+            "Platforms" => { "multi_select" => [{ "name" => "Nintendo Switch" }] },
+            "Playtime (Minutes)" => { "number" => nil },
+          },
+        },
+      ]
+
+      result = build_games_summary(pages)
+
+      assert_equal 2, result.length
+
+      assert_equal "page-1", result[0][:page_id]
+      assert_equal "Hades", result[0][:name]
+      assert_equal 1145360, result[0][:steam_id]
+      assert_equal "hades", result[0][:deku_deals_id]
+      assert_equal ["Steam", "Nintendo Switch"], result[0][:platforms]
+      assert_equal 120, result[0][:playtime]
+
+      assert_equal "page-2", result[1][:page_id]
+      assert_equal "Celeste", result[1][:name]
+      assert_nil result[1][:steam_id]
+      assert_nil result[1][:deku_deals_id]
+      assert_equal ["Nintendo Switch"], result[1][:platforms]
+      assert_equal 0, result[1][:playtime]
+    end
+
+    def test_fetch_all_games_summary_empty
+      assert_equal [], build_games_summary([])
+    end
+
     # --- parse_release_date ---
 
     def test_parse_release_date_standard_format
@@ -266,6 +315,20 @@ module GamingLibrary
         }
       end
       properties
+    end
+
+    def build_games_summary(pages)
+      pages.map { |page|
+        props = page["properties"]
+        {
+          page_id: page["id"],
+          name: props.dig("Name", "title", 0, "text", "content"),
+          steam_id: props.dig("Steam ID", "number"),
+          deku_deals_id: props.dig("Deku Deals ID", "rich_text", 0, "text", "content"),
+          platforms: (props.dig("Platforms", "multi_select") || []).map { |p| p["name"] },
+          playtime: props.dig("Playtime (Minutes)", "number") || 0,
+        }
+      }
     end
   end
 end

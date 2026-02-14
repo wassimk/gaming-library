@@ -1,14 +1,15 @@
 module GamingLibrary
   class GameSync
-    def initialize(steam_client:, notion_client:, full_sync: false, output: $stdout)
+    def initialize(steam_client:, notion_client:, full_sync: false, game_filter: nil, output: $stdout)
       @steam = steam_client
       @notion = notion_client
       @full_sync = full_sync
+      @game_filter = game_filter
       @output = output
     end
 
     def call
-      notion_pages = @notion.fetch_games
+      notion_pages = filtered_notion_pages
       @notion_map = @notion.games_map(notion_pages)
 
       log_summary
@@ -23,7 +24,7 @@ module GamingLibrary
       @output.puts "Inserting new games into Notion"
       @output.puts "=" * 80
 
-      @steam.owned_games.each do |game|
+      games_to_sync.each do |game|
         next if @notion_map.key?(game[:steam_id])
         next if @steam.excluded?(game)
 
@@ -75,7 +76,7 @@ module GamingLibrary
       end
       @output.puts "=" * 80
 
-      @steam.owned_games.each do |game|
+      games_to_sync.each do |game|
         next if @steam.excluded?(game)
 
         notion_data = @notion_map[game[:steam_id]]
@@ -134,11 +135,40 @@ module GamingLibrary
       steam_date != nil && steam_date != notion_data[:last_played_date]
     end
 
+    def filtered_notion_pages
+      if @game_filter.nil?
+        @notion.fetch_games
+      elsif @game_filter.match?(/\A\d+\z/)
+        @notion.fetch_games_by_steam_id(@game_filter.to_i)
+      else
+        @notion.fetch_games_by_name(@game_filter)
+      end
+    end
+
+    def games_to_sync
+      return @steam.owned_games if @game_filter.nil?
+
+      matched = @steam.owned_games.select { |g| game_matches?(g) }
+      if matched.empty?
+        @output.puts "No Steam games matched filter: #{@game_filter}"
+      end
+      matched
+    end
+
+    def game_matches?(game)
+      if @game_filter.match?(/\A\d+\z/)
+        game[:steam_id] == @game_filter.to_i
+      else
+        game[:name].downcase.include?(@game_filter.downcase)
+      end
+    end
+
     def log_summary
       @output.puts "=" * 80
       @output.puts "Steam games: #{@steam.owned_games.count}"
       @output.puts "Notion games: #{@notion_map.count}"
       @output.puts "Sync mode: #{@full_sync ? "full" : "incremental"}"
+      @output.puts "Game filter: #{@game_filter}" if @game_filter
       @output.puts "=" * 80
     end
   end

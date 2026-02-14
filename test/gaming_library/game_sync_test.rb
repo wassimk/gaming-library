@@ -290,6 +290,53 @@ module GamingLibrary
       assert_includes @output.string, "Sync mode: full"
     end
 
+    # --- Game filter tests ---
+
+    def test_game_filter_by_name
+      games = [
+        { name: "Hades", steam_id: 1145360, playtime_forever: 100, playtime_2weeks: 0 },
+        { name: "Celeste", steam_id: 504230, playtime_forever: 50, playtime_2weeks: 0 },
+      ]
+
+      steam = StubSteamClient.new(games: games)
+      notion = StubNotionClient.new(pages: [])
+
+      GameSync.new(steam_client: steam, notion_client: notion, game_filter: "Hades", output: @output).call
+
+      assert_equal 1, notion.inserted_games.length
+      assert_equal "Hades", notion.inserted_games.first[:name]
+      assert_includes @output.string, "Game filter: Hades"
+    end
+
+    def test_game_filter_by_steam_id
+      games = [
+        { name: "Hades", steam_id: 1145360, playtime_forever: 100, playtime_2weeks: 0 },
+        { name: "Celeste", steam_id: 504230, playtime_forever: 50, playtime_2weeks: 0 },
+      ]
+
+      steam = StubSteamClient.new(games: games)
+      notion = StubNotionClient.new(pages: [])
+
+      GameSync.new(steam_client: steam, notion_client: notion, game_filter: "1145360", output: @output).call
+
+      assert_equal 1, notion.inserted_games.length
+      assert_equal "Hades", notion.inserted_games.first[:name]
+    end
+
+    def test_game_filter_no_match
+      games = [
+        { name: "Hades", steam_id: 1145360, playtime_forever: 100, playtime_2weeks: 0 },
+      ]
+
+      steam = StubSteamClient.new(games: games)
+      notion = StubNotionClient.new(pages: [])
+
+      GameSync.new(steam_client: steam, notion_client: notion, game_filter: "Nonexistent", output: @output).call
+
+      assert_empty notion.inserted_games
+      assert_includes @output.string, "No Steam games matched filter: Nonexistent"
+    end
+
     private
 
     def notion_page(steam_id:, page_id:, playtime: 0, last_played_date: nil)
@@ -344,6 +391,17 @@ module GamingLibrary
 
       def fetch_games
         @pages
+      end
+
+      def fetch_games_by_steam_id(steam_id)
+        @pages.select { |p| p["properties"]["Steam ID"]["number"] == steam_id }
+      end
+
+      def fetch_games_by_name(name)
+        @pages.select { |p|
+          page_name = p["properties"].dig("Name", "title", 0, "text", "content")
+          page_name&.downcase&.include?(name.downcase)
+        }
       end
 
       def games_map(pages)
