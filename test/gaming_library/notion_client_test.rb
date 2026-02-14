@@ -17,6 +17,7 @@ module GamingLibrary
             "Steam ID" => { "number" => 123 },
             "Playtime (Minutes)" => { "number" => 60 },
             "Last Played Date" => { "date" => { "start" => "2024-01-15" } },
+            "Platforms" => { "multi_select" => [{ "name" => "Steam" }, { "name" => "Xbox Series X|S" }] },
           },
         },
         {
@@ -25,6 +26,7 @@ module GamingLibrary
             "Steam ID" => { "number" => 456 },
             "Playtime (Minutes)" => { "number" => nil },
             "Last Played Date" => { "date" => nil },
+            "Platforms" => { "multi_select" => [] },
           },
         },
       ]
@@ -34,10 +36,12 @@ module GamingLibrary
       assert_equal "page-1", result[123][:page_id]
       assert_equal 60, result[123][:playtime]
       assert_equal "2024-01-15", result[123][:last_played_date]
+      assert_equal ["Steam", "Xbox Series X|S"], result[123][:platforms]
 
       assert_equal "page-2", result[456][:page_id]
       assert_equal 0, result[456][:playtime]
       assert_nil result[456][:last_played_date]
+      assert_equal [], result[456][:platforms]
     end
 
     def test_games_map_empty
@@ -74,6 +78,23 @@ module GamingLibrary
         props[:Icon][:files][0][:external][:url]
       assert_equal [{ name: "Steam" }], props[:Platforms][:multi_select]
       assert_equal({ name: "Digital" }, props[:Format][:select])
+    end
+
+    def test_build_update_properties_merges_existing_platforms
+      game = { name: "Test", playtime_forever: 0, last_played_date: nil, steam_id: 1 }
+      details = {
+        "publishers" => nil, "developers" => nil, "genres" => nil,
+        "release_date" => { "date" => nil }, "capsule_imagev5" => nil,
+      }
+
+      props = @client.send(:build_update_properties,
+        game: game, details: details,
+        existing_platforms: ["Xbox Series X|S", "PlayStation 5"])
+
+      platform_names = props[:Platforms][:multi_select].map { |p| p[:name] }
+      assert_includes platform_names, "Steam"
+      assert_includes platform_names, "Xbox Series X|S"
+      assert_includes platform_names, "PlayStation 5"
     end
 
     def test_build_update_properties_strips_commas_from_multi_select

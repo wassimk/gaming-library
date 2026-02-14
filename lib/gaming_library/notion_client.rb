@@ -60,6 +60,7 @@ module GamingLibrary
           page_id: page["id"],
           playtime: props.dig("Playtime (Minutes)", "number") || 0,
           last_played_date: props.dig("Last Played Date", "date", "start"),
+          platforms: (props.dig("Platforms", "multi_select") || []).map { |p| p["name"] },
         }
         [steam_id, data]
       }.to_h
@@ -81,8 +82,8 @@ module GamingLibrary
       response.code
     end
 
-    def update_game(page_id:, game:, details:)
-      properties = build_update_properties(game: game, details: details)
+    def update_game(page_id:, game:, details:, existing_platforms: [])
+      properties = build_update_properties(game: game, details: details, existing_platforms: existing_platforms)
       body = { properties: properties }
 
       patch("/v1/pages/#{page_id}", body)
@@ -145,7 +146,7 @@ module GamingLibrary
           properties[:"Release Date"] = { date: { start: release_date.to_s } }
         end
 
-        image_url = details[:image_url] || game[:image_url]
+        image_url = game[:image_url] || details[:image_url]
         if image_url
           properties[:Icon] = {
             files: [
@@ -210,7 +211,7 @@ module GamingLibrary
         end
 
         if set_icon
-          image_url = details[:image_url] || game[:image_url]
+          image_url = game[:image_url] || details[:image_url]
           if image_url
             properties[:Icon] = {
               files: [
@@ -275,7 +276,7 @@ module GamingLibrary
       platforms
     end
 
-    def build_update_properties(game:, details:)
+    def build_update_properties(game:, details:, existing_platforms: [])
       properties = {}
 
       publishers = details["publishers"]
@@ -320,7 +321,10 @@ module GamingLibrary
       end
 
       properties[:"Playtime (Minutes)"] = { number: game[:playtime_forever] }
-      properties[:Platforms] = { multi_select: [{ name: "Steam" }] }
+      merged_platforms = merge_platforms(existing_platforms, "Steam")
+      properties[:Platforms] = {
+        multi_select: merged_platforms.map { |p| { name: p } },
+      }
       properties[:Format] = { select: { name: "Digital" } }
 
       properties

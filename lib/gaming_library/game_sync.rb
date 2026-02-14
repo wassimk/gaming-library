@@ -56,10 +56,15 @@ module GamingLibrary
 
       notion_pages = @notion.fetch_games
       notion_map = @notion.games_map(notion_pages)
-      page_id = notion_map[game[:steam_id]]&.fetch(:page_id)
-      return if page_id.nil?
+      notion_data = notion_map[game[:steam_id]]
+      return if notion_data.nil?
 
-      @notion.update_game(page_id: page_id, game: game, details: details)
+      @notion.update_game(
+        page_id: notion_data[:page_id],
+        game: game,
+        details: details,
+        existing_platforms: notion_data[:platforms] || [],
+      )
       @output.puts "Backfilled metadata for game: #{game[:name]}"
       sleep 1
     rescue StandardError => e
@@ -86,7 +91,7 @@ module GamingLibrary
         end
 
         if @full_sync
-          full_update_game(notion_data[:page_id], game)
+          full_update_game(notion_data, game)
         else
           incremental_update_game(notion_data, game)
         end
@@ -96,7 +101,7 @@ module GamingLibrary
       end
     end
 
-    def full_update_game(page_id, game)
+    def full_update_game(notion_data, game)
       details = @steam.game_details(game[:steam_id])
       if details.nil?
         @output.puts "Game details API call for #{game[:name]} failed"
@@ -108,7 +113,12 @@ module GamingLibrary
         return
       end
 
-      @notion.update_game(page_id: page_id, game: game, details: details)
+      @notion.update_game(
+        page_id: notion_data[:page_id],
+        game: game,
+        details: details,
+        existing_platforms: notion_data[:platforms] || [],
+      )
       @output.puts "Updated Notion for game: #{game[:name]} - #{game[:steam_id]}"
       sleep 1
     end
