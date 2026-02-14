@@ -27,6 +27,11 @@ module GamingLibrary
       @deku_id_map = build_deku_id_map
 
       game_list = build_game_list
+      if game_list.empty?
+        @output.puts "Deku Deals: no games found in collection (site may have changed)"
+        return
+      end
+
       log_summary(game_list)
       insert_or_merge_games(game_list)
       update_all_metadata(game_list) if @full_sync

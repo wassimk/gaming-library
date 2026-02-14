@@ -217,6 +217,11 @@ module GamingLibrary
       assert_equal "January 13, 2015", result[:release_date]
     end
 
+    def test_game_details_returns_nil_on_fetch_error
+      client = ErrorDekuDealsClient.new(collection_id: "test123")
+      assert_nil client.game_details("broken-game")
+    end
+
     def test_game_details_uses_small_image_as_fallback
       @client.game_details_html = <<~HTML
         <html><body>
@@ -248,6 +253,14 @@ module GamingLibrary
 
       def fetch_game_details(_slug)
         @game_details_html
+      end
+    end
+
+    class ErrorDekuDealsClient < DekuDealsClient
+      private
+
+      def fetch_game_details(_slug)
+        raise StandardError, "connection refused"
       end
     end
   end
