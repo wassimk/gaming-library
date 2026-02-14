@@ -50,6 +50,8 @@ module GamingLibrary
           Name: { title: [{ text: { content: game[:name] } }] },
           "Playtime (Minutes)": { number: game[:playtime_forever] },
           "Steam ID": { number: game[:steam_id] },
+          Platforms: { multi_select: [{ name: "Steam" }] },
+          Format: { select: { name: "Digital" } },
         },
       }
 
@@ -123,6 +125,8 @@ module GamingLibrary
       end
 
       properties[:"Playtime (Minutes)"] = { number: game[:playtime_forever] }
+      properties[:Platforms] = { multi_select: [{ name: "Steam" }] }
+      properties[:Format] = { select: { name: "Digital" } }
 
       properties
     end
