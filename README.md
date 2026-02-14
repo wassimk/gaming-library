@@ -16,8 +16,8 @@ Create a Notion database and add the following properties. The names must match 
 | Steam ID | Number | Unique Steam app ID |
 | Playtime (Minutes) | Number | Total playtime from Steam |
 | Last Played Date | Date | When you last played |
-| Platforms | Multi-select | Set to "Steam" automatically |
-| Format | Select | Set to "Digital" automatically |
+| Platforms | Multi-select | Game platforms (Steam, PlayStation 5, etc.) |
+| Format | Select | Digital or Physical |
 | Publishers | Multi-select | Game publishers |
 | Developers | Multi-select | Game developers |
 | Genres | Multi-select | Game genres (Action, RPG, etc.) |
@@ -46,6 +46,27 @@ Two GitHub Actions workflows handle everything. See [`.github/workflows/`](.gith
 - [**Monthly Sync**](.github/workflows/monthly-sync.yml) — Refreshes all game metadata (genres, publishers, release dates, cover art).
 
 Both can be triggered manually from the **Actions** tab whenever you want.
+
+## Optional: Deku Deals Integration
+
+If you track console games (Switch, PS5, PS4, Xbox) via a [Deku Deals](https://www.dekudeals.com) collection, you can optionally sync those too. This is entirely opt-in — the script works fine with just Steam.
+
+### Additional Setup
+
+1. Add a **Deku Deals ID** property (Rich text) to your Notion database. This stores the game slug from Deku Deals.
+
+2. Add the `DEKUDEALS_COLLECTION_ID` secret to GitHub Actions. You can find your collection ID in the URL when viewing your collection on Deku Deals (e.g. `https://www.dekudeals.com/collection/abc123` → `abc123`).
+
+| Secret | Description |
+|--------|-------------|
+| `DEKUDEALS_COLLECTION_ID` | Your Deku Deals collection ID (from the collection URL) |
+
+### How It Works
+
+- Games are matched between Deku Deals and Notion by name (case-insensitive) or by the Deku Deals ID property.
+- If a game already exists in Notion (e.g. from Steam), the Deku Deals platform is added to the Platforms multi-select.
+- You can manually set a Deku Deals ID on any Notion entry to explicitly link it to a Deku Deals game.
+- Cover art from Deku Deals is used for the Icon property.
 
 ## Running Locally
 

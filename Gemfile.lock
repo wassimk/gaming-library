@@ -16,6 +16,8 @@ GEM
     language_server-protocol (3.17.0.3)
     minitest (6.0.1)
       prism (~> 1.5)
+    nokogiri (1.19.0-arm64-darwin)
+      racc (~> 1.4)
     parallel (1.26.3)
     parser (3.3.5.1)
       ast (~> 2.4.1)
@@ -53,16 +55,17 @@ GEM
 
 PLATFORMS
   arm64-darwin-23
-  ruby
+  arm64-darwin-25
 
 DEPENDENCIES
   awesome_print
   debug
   dotenv
   minitest
+  nokogiri
   rake
   rubocop
   syntax_tree
 
 BUNDLED WITH
-   4.0.6
+  4.0.6

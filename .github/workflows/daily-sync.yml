@@ -26,3 +26,4 @@ jobs:
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           STEAM_USER_ID: ${{ secrets.STEAM_USER_ID }}
           STEAM_EXCLUDED_GAME_IDS: ${{ secrets.STEAM_EXCLUDED_GAME_IDS }}
+          DEKUDEALS_COLLECTION_ID: ${{ secrets.DEKUDEALS_COLLECTION_ID }}
