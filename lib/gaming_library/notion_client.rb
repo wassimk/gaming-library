@@ -32,7 +32,14 @@ module GamingLibrary
 
     def games_map(notion_pages)
       notion_pages.map { |page|
-        [page["properties"]["Steam ID"]["number"], page["id"]]
+        props = page["properties"]
+        steam_id = props["Steam ID"]["number"]
+        data = {
+          page_id: page["id"],
+          playtime: props.dig("Playtime (Minutes)", "number") || 0,
+          last_played_date: props.dig("Last Played Date", "date", "start"),
+        }
+        [steam_id, data]
       }.to_h
     end
 

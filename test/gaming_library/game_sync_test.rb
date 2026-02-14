@@ -38,9 +38,7 @@ module GamingLibrary
 
     def test_skips_games_already_in_notion
       games = [{ name: "Existing", steam_id: 1, playtime_forever: 10, playtime_2weeks: 0 }]
-      notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 1 } } },
-      ]
+      notion_pages = [notion_page(steam_id: 1, page_id: "page-1", playtime: 10)]
 
       steam = StubSteamClient.new(games: games)
       notion = StubNotionClient.new(pages: notion_pages)
@@ -65,9 +63,7 @@ module GamingLibrary
 
     def test_full_sync_updates_existing_game_with_details
       games = [{ name: "Existing", steam_id: 1, playtime_forever: 10, playtime_2weeks: 0 }]
-      notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 1 } } },
-      ]
+      notion_pages = [notion_page(steam_id: 1, page_id: "page-1", playtime: 10)]
 
       steam = StubSteamClient.new(games: games)
       notion = StubNotionClient.new(pages: notion_pages)
@@ -85,8 +81,8 @@ module GamingLibrary
         { name: "Not Played Recently", steam_id: 2, playtime_forever: 50, playtime_2weeks: 0 },
       ]
       notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 1 } } },
-        { "id" => "page-2", "properties" => { "Steam ID" => { "number" => 2 } } },
+        notion_page(steam_id: 1, page_id: "page-1", playtime: 100),
+        notion_page(steam_id: 2, page_id: "page-2", playtime: 50),
       ]
 
       steam = StubSteamClient.new(games: games)
@@ -99,9 +95,7 @@ module GamingLibrary
 
     def test_full_sync_skips_excluded_games_on_update
       games = [{ name: "Excluded", steam_id: 99, playtime_forever: 0, playtime_2weeks: 0 }]
-      notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 99 } } },
-      ]
+      notion_pages = [notion_page(steam_id: 99, page_id: "page-1", playtime: 0)]
 
       steam = StubSteamClient.new(games: games, excluded_ids: [99])
       notion = StubNotionClient.new(pages: notion_pages)
@@ -113,9 +107,7 @@ module GamingLibrary
 
     def test_full_sync_skips_update_when_details_nil
       games = [{ name: "Failed", steam_id: 1, playtime_forever: 0, playtime_2weeks: 0 }]
-      notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 1 } } },
-      ]
+      notion_pages = [notion_page(steam_id: 1, page_id: "page-1", playtime: 0)]
 
       steam = StubSteamClient.new(games: games, details: { 1 => nil })
       notion = StubNotionClient.new(pages: notion_pages)
@@ -132,9 +124,7 @@ module GamingLibrary
       games = [
         { name: "Not Played", steam_id: 1, playtime_forever: 50, playtime_2weeks: 0 },
       ]
-      notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 1 } } },
-      ]
+      notion_pages = [notion_page(steam_id: 1, page_id: "page-1", playtime: 50)]
 
       steam = StubSteamClient.new(games: games)
       notion = StubNotionClient.new(pages: notion_pages)
@@ -146,14 +136,12 @@ module GamingLibrary
       assert_includes @output.string, "Skipping Not Played (no recent playtime)"
     end
 
-    def test_incremental_updates_games_with_recent_playtime
+    def test_incremental_updates_games_with_higher_playtime
       games = [
         { name: "Playing Now", steam_id: 1, playtime_forever: 100, playtime_2weeks: 25,
           last_played_date: Time.new(2024, 1, 15) },
       ]
-      notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 1 } } },
-      ]
+      notion_pages = [notion_page(steam_id: 1, page_id: "page-1", playtime: 75)]
 
       steam = StubSteamClient.new(games: games)
       notion = StubNotionClient.new(pages: notion_pages)
@@ -166,6 +154,60 @@ module GamingLibrary
       assert_includes @output.string, "Updated playtime for game: Playing Now"
     end
 
+    def test_incremental_skips_when_playtime_unchanged
+      games = [
+        { name: "Same Playtime", steam_id: 1, playtime_forever: 100, playtime_2weeks: 5,
+          last_played_date: Time.new(2024, 1, 15) },
+      ]
+      notion_pages = [
+        notion_page(steam_id: 1, page_id: "page-1", playtime: 100, last_played_date: "2024-01-15"),
+      ]
+
+      steam = StubSteamClient.new(games: games)
+      notion = StubNotionClient.new(pages: notion_pages)
+
+      GameSync.new(steam_client: steam, notion_client: notion, output: @output).call
+
+      assert_empty notion.playtime_updated_games
+      assert_includes @output.string, "Skipping Same Playtime (no changes)"
+    end
+
+    def test_incremental_skips_when_notion_playtime_is_higher
+      games = [
+        { name: "Manual Override", steam_id: 1, playtime_forever: 50, playtime_2weeks: 10,
+          last_played_date: Time.new(2024, 1, 15) },
+      ]
+      notion_pages = [
+        notion_page(steam_id: 1, page_id: "page-1", playtime: 200, last_played_date: "2024-01-15"),
+      ]
+
+      steam = StubSteamClient.new(games: games)
+      notion = StubNotionClient.new(pages: notion_pages)
+
+      GameSync.new(steam_client: steam, notion_client: notion, output: @output).call
+
+      assert_empty notion.playtime_updated_games
+      assert_includes @output.string, "Skipping Manual Override (no changes)"
+    end
+
+    def test_incremental_updates_when_last_played_date_changed
+      games = [
+        { name: "New Date", steam_id: 1, playtime_forever: 100, playtime_2weeks: 5,
+          last_played_date: Time.new(2024, 2, 20) },
+      ]
+      notion_pages = [
+        notion_page(steam_id: 1, page_id: "page-1", playtime: 100, last_played_date: "2024-01-15"),
+      ]
+
+      steam = StubSteamClient.new(games: games)
+      notion = StubNotionClient.new(pages: notion_pages)
+
+      GameSync.new(steam_client: steam, notion_client: notion, output: @output).call
+
+      assert_equal 1, notion.playtime_updated_games.length
+      assert_includes @output.string, "Updated playtime for game: New Date"
+    end
+
     def test_incremental_only_updates_recently_played_games
       games = [
         { name: "Active", steam_id: 1, playtime_forever: 100, playtime_2weeks: 20 },
@@ -173,9 +215,9 @@ module GamingLibrary
         { name: "Also Active", steam_id: 3, playtime_forever: 200, playtime_2weeks: 5 },
       ]
       notion_pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 1 } } },
-        { "id" => "page-2", "properties" => { "Steam ID" => { "number" => 2 } } },
-        { "id" => "page-3", "properties" => { "Steam ID" => { "number" => 3 } } },
+        notion_page(steam_id: 1, page_id: "page-1", playtime: 80),
+        notion_page(steam_id: 2, page_id: "page-2", playtime: 50),
+        notion_page(steam_id: 3, page_id: "page-3", playtime: 195),
       ]
 
       steam = StubSteamClient.new(games: games)
@@ -217,6 +259,20 @@ module GamingLibrary
       GameSync.new(steam_client: steam, notion_client: notion, full_sync: true, output: @output).call
 
       assert_includes @output.string, "Sync mode: full"
+    end
+
+    private
+
+    def notion_page(steam_id:, page_id:, playtime: 0, last_played_date: nil)
+      date_value = last_played_date ? { "start" => last_played_date } : nil
+      {
+        "id" => page_id,
+        "properties" => {
+          "Steam ID" => { "number" => steam_id },
+          "Playtime (Minutes)" => { "number" => playtime },
+          "Last Played Date" => { "date" => date_value },
+        },
+      }
     end
 
     # --- Stub objects ---
@@ -262,7 +318,16 @@ module GamingLibrary
       end
 
       def games_map(pages)
-        pages.map { |p| [p["properties"]["Steam ID"]["number"], p["id"]] }.to_h
+        pages.map { |p|
+          props = p["properties"]
+          steam_id = props["Steam ID"]["number"]
+          data = {
+            page_id: p["id"],
+            playtime: props.dig("Playtime (Minutes)", "number") || 0,
+            last_played_date: props.dig("Last Played Date", "date", "start"),
+          }
+          [steam_id, data]
+        }.to_h
       end
 
       def insert_game(game)
@@ -270,7 +335,11 @@ module GamingLibrary
         if @backfill_after_insert
           @pages << {
             "id" => "new-page-#{game[:steam_id]}",
-            "properties" => { "Steam ID" => { "number" => game[:steam_id] } },
+            "properties" => {
+              "Steam ID" => { "number" => game[:steam_id] },
+              "Playtime (Minutes)" => { "number" => 0 },
+              "Last Played Date" => { "date" => nil },
+            },
           }
         end
         "200"
