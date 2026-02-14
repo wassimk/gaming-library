@@ -66,6 +66,151 @@ module GamingLibrary
       patch("/v1/pages/#{page_id}", body)
     end
 
+    def games_map_by_name(notion_pages)
+      notion_pages.map { |page|
+        props = page["properties"]
+        name = props.dig("Name", "title", 0, "text", "content")
+        next unless name
+
+        platforms =
+          (props.dig("Platforms", "multi_select") || []).map { |p| p["name"] }
+        deku_deals_id =
+          props.dig("Deku Deals ID", "rich_text", 0, "text", "content")
+
+        data = {
+          page_id: page["id"],
+          platforms: platforms,
+          deku_deals_id: deku_deals_id,
+        }
+        [name.strip.downcase, data]
+      }.compact.to_h
+    end
+
+    def insert_deku_deals_game(game:, details:)
+      properties = {
+        Name: { title: [{ text: { content: game[:name] } }] },
+        "Deku Deals ID": {
+          rich_text: [{ text: { content: game[:slug] } }],
+        },
+        Platforms: { multi_select: [{ name: game[:platform] }] },
+        Format: { select: { name: (game[:format] || "Digital").capitalize } },
+      }
+
+      if details
+        if details[:publishers]
+          properties[:Publishers] = {
+            multi_select:
+              details[:publishers].map { |p| { name: p.gsub(",", "") } },
+          }
+        end
+
+        if details[:developers]
+          properties[:Developers] = {
+            multi_select:
+              details[:developers].map { |d| { name: d.gsub(",", "") } },
+          }
+        end
+
+        if details[:genres]
+          properties[:Genres] = {
+            multi_select:
+              details[:genres].map { |g| { name: g.gsub(",", "") } },
+          }
+        end
+
+        release_date = parse_release_date(details[:release_date])
+        if release_date
+          properties[:"Release Date"] = { date: { start: release_date.to_s } }
+        end
+
+        image_url = details[:image_url] || game[:image_url]
+        if image_url
+          properties[:Icon] = {
+            files: [
+              { name: "logo", type: "external", external: { url: image_url } },
+            ],
+          }
+        end
+      elsif game[:image_url]
+        properties[:Icon] = {
+          files: [
+            {
+              name: "logo",
+              type: "external",
+              external: { url: game[:image_url] },
+            },
+          ],
+        }
+      end
+
+      body = { parent: { database_id: @database_id }, properties: properties }
+      response = post_raw("/v1/pages", body)
+      response.code
+    end
+
+    def update_deku_deals_game(page_id:, game:, details:, existing_platforms:)
+      properties = {}
+
+      merged_platforms = merge_platforms(existing_platforms, game[:platform])
+      properties[:Platforms] = {
+        multi_select: merged_platforms.map { |p| { name: p } },
+      }
+
+      properties[:"Deku Deals ID"] = {
+        rich_text: [{ text: { content: game[:slug] } }],
+      }
+
+      if details
+        if details[:publishers]
+          properties[:Publishers] = {
+            multi_select:
+              details[:publishers].map { |p| { name: p.gsub(",", "") } },
+          }
+        end
+
+        if details[:developers]
+          properties[:Developers] = {
+            multi_select:
+              details[:developers].map { |d| { name: d.gsub(",", "") } },
+          }
+        end
+
+        if details[:genres]
+          properties[:Genres] = {
+            multi_select:
+              details[:genres].map { |g| { name: g.gsub(",", "") } },
+          }
+        end
+
+        release_date = parse_release_date(details[:release_date])
+        if release_date
+          properties[:"Release Date"] = { date: { start: release_date.to_s } }
+        end
+
+        image_url = details[:image_url] || game[:image_url]
+        if image_url
+          properties[:Icon] = {
+            files: [
+              { name: "logo", type: "external", external: { url: image_url } },
+            ],
+          }
+        end
+      elsif game[:image_url]
+        properties[:Icon] = {
+          files: [
+            {
+              name: "logo",
+              type: "external",
+              external: { url: game[:image_url] },
+            },
+          ],
+        }
+      end
+
+      body = { properties: properties }
+      patch("/v1/pages/#{page_id}", body)
+    end
+
     def update_game_playtime(page_id:, game:)
       properties = {}
       properties[:"Playtime (Minutes)"] = { number: game[:playtime_forever] }
@@ -79,6 +224,22 @@ module GamingLibrary
     end
 
     private
+
+    PLATFORM_UPGRADES = {
+      "Nintendo Switch 2" => "Nintendo Switch",
+    }.freeze
+
+    def merge_platforms(existing, new_platform)
+      platforms = (existing + [new_platform]).uniq
+
+      PLATFORM_UPGRADES.each do |upgrade, superseded|
+        if platforms.include?(upgrade)
+          platforms.delete(superseded)
+        end
+      end
+
+      platforms
+    end
 
     def build_update_properties(game:, details:)
       properties = {}

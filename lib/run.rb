@@ -4,6 +4,8 @@ require "debug"
 require_relative "gaming_library/steam_client"
 require_relative "gaming_library/notion_client"
 require_relative "gaming_library/game_sync"
+require_relative "gaming_library/deku_deals_client"
+require_relative "gaming_library/deku_deals_sync"
 
 def main
   full_sync = ARGV.include?("--full-sync")
@@ -24,6 +26,17 @@ def main
     notion_client: notion_client,
     full_sync: full_sync,
   ).call
+
+  if ENV["DEKUDEALS_COLLECTION_ID"]
+    deku_deals_client = GamingLibrary::DekuDealsClient.new(
+      collection_id: ENV["DEKUDEALS_COLLECTION_ID"],
+    )
+    GamingLibrary::DekuDealsSync.new(
+      deku_deals_client: deku_deals_client,
+      notion_client: notion_client,
+      full_sync: full_sync,
+    ).call
+  end
 end
 
 main if __FILE__ == $PROGRAM_NAME
