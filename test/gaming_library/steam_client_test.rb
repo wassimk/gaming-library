@@ -11,6 +11,7 @@ module GamingLibrary
               "appid" => 123,
               "name" => "Test Game",
               "playtime_forever" => 60,
+              "playtime_2weeks" => 15,
               "rtime_last_played" => 1_700_000_000,
               "img_icon_url" => "abc123",
             },
@@ -32,11 +33,13 @@ module GamingLibrary
 
       assert_equal "Test Game", games[0][:name]
       assert_equal 60, games[0][:playtime_forever]
+      assert_equal 15, games[0][:playtime_2weeks]
       assert_equal 123, games[0][:steam_id]
       assert_instance_of Time, games[0][:last_played_date]
       assert_includes games[0][:icon_url], "abc123"
 
       assert_equal "Never Played", games[1][:name]
+      assert_equal 0, games[1][:playtime_2weeks]
       assert_nil games[1][:last_played_date]
     end
 

@@ -88,6 +88,41 @@ module GamingLibrary
       assert props.key?(:"Playtime (Minutes)")
     end
 
+    # --- update_game_playtime ---
+
+    def test_update_game_playtime_builds_correct_properties
+      game = {
+        name: "Test",
+        playtime_forever: 200,
+        last_played_date: Time.new(2024, 6, 10),
+        steam_id: 123,
+      }
+
+      props = build_playtime_properties(game)
+
+      assert_equal 200, props[:"Playtime (Minutes)"][:number]
+      assert_equal "2024-06-10", props[:"Last Played Date"][:date][:start]
+      refute props.key?(:Publishers)
+      refute props.key?(:Developers)
+      refute props.key?(:Genres)
+      refute props.key?(:"Release Date")
+      refute props.key?(:Icon)
+    end
+
+    def test_update_game_playtime_excludes_nil_last_played
+      game = {
+        name: "Test",
+        playtime_forever: 0,
+        last_played_date: nil,
+        steam_id: 456,
+      }
+
+      props = build_playtime_properties(game)
+
+      assert_equal 0, props[:"Playtime (Minutes)"][:number]
+      refute props.key?(:"Last Played Date")
+    end
+
     # --- parse_release_date ---
 
     def test_parse_release_date_standard_format
@@ -101,6 +136,19 @@ module GamingLibrary
 
     def test_parse_release_date_nil_returns_nil
       assert_nil @client.send(:parse_release_date, nil)
+    end
+
+    private
+
+    def build_playtime_properties(game)
+      properties = {}
+      properties[:"Playtime (Minutes)"] = { number: game[:playtime_forever] }
+      if !game[:last_played_date].nil?
+        properties[:"Last Played Date"] = {
+          date: { start: game[:last_played_date].to_date.to_s },
+        }
+      end
+      properties
     end
   end
 end
