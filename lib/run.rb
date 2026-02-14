@@ -5,58 +5,14 @@ require "json"
 require "uri"
 require "debug"
 require "date"
+require_relative "gaming_library/steam_client"
 
-def steam_games
-  @steam_games ||=
-    fetch_steam_owned_games.then { |response| parse_fetch_steam_games_response(response) }
-end
-
-def excluded_steam_games
-  @excluded_steam_games ||=
-    begin
-      excluded_steam_games_ids = ENV["STEAM_EXCLUDED_GAME_IDS"].split(",").map(&:strip).map(&:to_i)
-
-      steam_games
-        .select { |game| excluded_steam_games_ids.include?(game[:steam_id]) }
-        .sort_by { |game| game[:name] }
-    end
-end
-
-def excluded_steam_game?(game)
-  excluded_steam_games.map { |game| game[:steam_id] }.include?(game[:steam_id])
-end
-
-def fetch_steam_owned_games
-  uri =
-    URI(
-      "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=#{ENV["STEAM_API_KEY"]}&steamid=#{ENV["STEAM_USER_ID"]}&include_appinfo=true",
-    )
-  response = Net::HTTP.get(uri)
-  JSON.parse(response)
-end
-
-def fetch_steam_game_details(appid)
-  uri = URI("https://store.steampowered.com/api/appdetails?appids=#{appid}")
-  response = Net::HTTP.get(uri)
-  JSON.parse(response)
-end
-
-def parse_fetch_steam_games_response(response)
-  games = response["response"]["games"]
-  games.map do |game|
-    icon_url =
-      "http://media.steampowered.com/steamcommunity/public/images/apps/#{game["appid"]}/#{game["img_icon_url"]}.jpg"
-    last_played_date =
-      (game["rtime_last_played"].positive? ? Time.at(game["rtime_last_played"]) : nil)
-
-    {
-      name: game["name"],
-      playtime_forever: game["playtime_forever"],
-      last_played_date: last_played_date,
-      icon_url: icon_url,
-      steam_id: game["appid"],
-    }
-  end
+def steam_client
+  @steam_client ||= GamingLibrary::SteamClient.new(
+    api_key: ENV["STEAM_API_KEY"],
+    user_id: ENV["STEAM_USER_ID"],
+    excluded_game_ids: ENV["STEAM_EXCLUDED_GAME_IDS"].split(",").map(&:strip).map(&:to_i),
+  )
 end
 
 def fetch_notion_games
@@ -105,13 +61,10 @@ def insert_notion_database(steam_games, notion_games)
   puts "=" * 80
   puts "Inserting into Notion database"
   puts "Working with #{notion_games_map.count} Notion games"
-  puts "Working with #{steam_games.count} Steam games"
-  puts "=" * 80
-  puts "Excluding #{excluded_steam_games.count} Steam games:"
-  puts(excluded_steam_games.map { |game| "#{game[:name]} - #{game[:steam_id]}" })
+  puts "Working with #{steam_client.owned_games.count} Steam games"
   puts "=" * 80
 
-  steam_games.each do |game|
+  steam_client.owned_games.each do |game|
     body = {
       properties: {
         Name: {
@@ -128,7 +81,7 @@ def insert_notion_database(steam_games, notion_games)
 
     next if notion_games_map.key?(game[:steam_id]) # game already exists in Notion
     # exclude this game
-    next if excluded_steam_game?(game)
+    next if steam_client.excluded?(game)
 
     uri = URI("https://api.notion.com/v1/pages")
     request = Net::HTTP::Post.new(uri.path, header)
@@ -162,18 +115,17 @@ def update_notion_database(steam_games, notion_games)
   puts "=" * 80
   puts "Updating Notion database"
   puts "Working with #{notion_games_map.count} Notion games"
-  puts "Working with #{steam_games.count} Steam games"
+  puts "Working with #{steam_client.owned_games.count} Steam games"
   puts "=" * 80
 
-  steam_games.each do |game|
-    game_details = fetch_steam_game_details(game[:steam_id])
+  steam_client.owned_games.each do |game|
+    details = steam_client.game_details(game[:steam_id])
 
-    if game_details[game[:steam_id].to_s]["success"] == false
+    if details.nil?
       puts "Game details API call for #{game[:name]} failed"
       next
     end
 
-    details = game_details[game[:steam_id].to_s]["data"]
     publishers = details["publishers"]
     developers = details["developers"]
     genres = details["genres"].map { |genre| genre["description"] }
@@ -222,7 +174,7 @@ def update_notion_database(steam_games, notion_games)
 
     page_id = notion_games_map[game[:steam_id]]
 
-    next if excluded_steam_game?(game)
+    next if steam_client.excluded?(game)
 
     if page_id.nil?
       puts "Game does not exist in Notion: #{game[:name]}"
@@ -253,8 +205,8 @@ end
 
 def main
   notion_response = fetch_notion_games
-  insert_notion_database(steam_games, notion_response)
-  update_notion_database(steam_games, notion_response)
+  insert_notion_database(steam_client.owned_games, notion_response)
+  update_notion_database(steam_client.owned_games, notion_response)
 end
 
 main if __FILE__ == $PROGRAM_NAME
