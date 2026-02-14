@@ -72,6 +72,8 @@ module GamingLibrary
       assert_equal "2024-01-15", props[:"Last Played Date"][:date][:start]
       assert_equal "http://example.com/logo.jpg",
         props[:Icon][:files][0][:external][:url]
+      assert_equal [{ name: "Steam" }], props[:Platforms][:multi_select]
+      assert_equal({ name: "Digital" }, props[:Format][:select])
     end
 
     def test_build_update_properties_strips_commas_from_multi_select
@@ -107,6 +109,8 @@ module GamingLibrary
       refute props.key?(:Icon)
       refute props.key?(:"Last Played Date")
       assert props.key?(:"Playtime (Minutes)")
+      assert_equal [{ name: "Steam" }], props[:Platforms][:multi_select]
+      assert_equal({ name: "Digital" }, props[:Format][:select])
     end
 
     # --- update_game_playtime ---
