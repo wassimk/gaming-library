@@ -80,6 +80,14 @@ bundle exec ruby lib/run.rb            # daily sync
 bundle exec ruby lib/run.rb --full-sync # full metadata refresh
 ```
 
+## Claude Code Skills
+
+These [skills](https://docs.anthropic.com/en/docs/claude-code/skills) automate common library management tasks when using [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview).
+
+- **`/dedup-games`** — Find and resolve duplicate game entries. Scans for edition variants, substring matches, and shared Steam IDs, then walks you through merging or archiving duplicates.
+
+- **`/add-quest-vr-game`** — Add Meta Quest VR games to the library. Accepts comma-separated game names (e.g. `/add-quest-vr-game Beat Saber, SUPERHOT VR`), searches for cover art, confirms with you, and inserts each game with platform "Meta Quest" and format "Digital".
+
 ## Development
 
 ```shell
