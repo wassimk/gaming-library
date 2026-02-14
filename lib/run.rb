@@ -28,17 +28,19 @@ def main
   ).call
 
   if ENV["DEKUDEALS_COLLECTION_ID"]
-    deku_deals_client = GamingLibrary::DekuDealsClient.new(
-      collection_id: ENV["DEKUDEALS_COLLECTION_ID"],
-    )
-    GamingLibrary::DekuDealsSync.new(
-      deku_deals_client: deku_deals_client,
-      notion_client: notion_client,
-      full_sync: full_sync,
-    ).call
-  rescue StandardError => e
-    $stderr.puts "Deku Deals sync failed: #{e.message}"
-    $stderr.puts e.backtrace.first(5).join("\n")
+    begin
+      deku_deals_client = GamingLibrary::DekuDealsClient.new(
+        collection_id: ENV["DEKUDEALS_COLLECTION_ID"],
+      )
+      GamingLibrary::DekuDealsSync.new(
+        deku_deals_client: deku_deals_client,
+        notion_client: notion_client,
+        full_sync: full_sync,
+      ).call
+    rescue StandardError => e
+      $stderr.puts "Deku Deals sync failed: #{e.message}"
+      $stderr.puts e.backtrace.first(5).join("\n")
+    end
   end
 end
 
