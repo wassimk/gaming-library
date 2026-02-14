@@ -6,6 +6,8 @@ require_relative "gaming_library/notion_client"
 require_relative "gaming_library/game_sync"
 
 def main
+  full_sync = ARGV.include?("--full-sync")
+
   steam_client = GamingLibrary::SteamClient.new(
     api_key: ENV["STEAM_API_KEY"],
     user_id: ENV["STEAM_USER_ID"],
@@ -20,6 +22,7 @@ def main
   GamingLibrary::GameSync.new(
     steam_client: steam_client,
     notion_client: notion_client,
+    full_sync: full_sync,
   ).call
 end
 

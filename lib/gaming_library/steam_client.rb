@@ -56,6 +56,7 @@ module GamingLibrary
         {
           name: game["name"],
           playtime_forever: game["playtime_forever"],
+          playtime_2weeks: game["playtime_2weeks"] || 0,
           last_played_date: last_played_date,
           icon_url: icon_url,
           steam_id: game["appid"],

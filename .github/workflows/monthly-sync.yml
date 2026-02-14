@@ -1,0 +1,28 @@
+name: Monthly Sync
+
+on:
+  schedule:
+    - cron: '15 10 1 * *' # 1st of month, 4:15 A.M. CST in UTC
+
+  workflow_dispatch:
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone GitHub Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby Environment
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Run Full Sync
+        run: bundle exec ruby lib/run.rb --full-sync
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+          STEAM_USER_ID: ${{ secrets.STEAM_USER_ID }}
+          STEAM_EXCLUDED_GAME_IDS: ${{ secrets.STEAM_EXCLUDED_GAME_IDS }}

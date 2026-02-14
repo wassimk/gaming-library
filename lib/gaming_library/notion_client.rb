@@ -57,6 +57,18 @@ module GamingLibrary
       patch("/v1/pages/#{page_id}", body)
     end
 
+    def update_game_playtime(page_id:, game:)
+      properties = {}
+      properties[:"Playtime (Minutes)"] = { number: game[:playtime_forever] }
+      if !game[:last_played_date].nil?
+        properties[:"Last Played Date"] = {
+          date: { start: game[:last_played_date].to_date.to_s },
+        }
+      end
+      body = { properties: properties }
+      patch("/v1/pages/#{page_id}", body)
+    end
+
     private
 
     def build_update_properties(game:, details:)
