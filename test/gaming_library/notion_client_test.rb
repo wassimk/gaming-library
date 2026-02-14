@@ -148,6 +148,98 @@ module GamingLibrary
       refute props.key?(:"Last Played Date")
     end
 
+    # --- merge_platforms ---
+
+    def test_merge_platforms_adds_new_platform
+      result = @client.send(:merge_platforms, ["Steam"], "Nintendo Switch")
+      assert_equal ["Steam", "Nintendo Switch"], result
+    end
+
+    def test_merge_platforms_deduplicates
+      result = @client.send(:merge_platforms, ["Steam"], "Steam")
+      assert_equal ["Steam"], result
+    end
+
+    def test_merge_platforms_switch2_removes_switch
+      result = @client.send(:merge_platforms, ["Nintendo Switch", "Steam"], "Nintendo Switch 2")
+      assert_equal ["Steam", "Nintendo Switch 2"], result
+    end
+
+    def test_merge_platforms_keeps_switch_when_no_switch2
+      result = @client.send(:merge_platforms, ["Nintendo Switch", "Steam"], "PlayStation 5")
+      assert_equal ["Nintendo Switch", "Steam", "PlayStation 5"], result
+    end
+
+    # --- games_map_by_name ---
+
+    def test_games_map_by_name_builds_name_to_data_hash
+      pages = [
+        {
+          "id" => "page-1",
+          "properties" => {
+            "Name" => { "title" => [{ "text" => { "content" => "Hades" } }] },
+            "Platforms" => { "multi_select" => [{ "name" => "Steam" }, { "name" => "Nintendo Switch" }] },
+            "Deku Deals ID" => { "rich_text" => [{ "text" => { "content" => "hades" } }] },
+          },
+        },
+        {
+          "id" => "page-2",
+          "properties" => {
+            "Name" => { "title" => [{ "text" => { "content" => "Celeste" } }] },
+            "Platforms" => { "multi_select" => [{ "name" => "Steam" }] },
+            "Deku Deals ID" => { "rich_text" => [] },
+          },
+        },
+      ]
+
+      result = @client.games_map_by_name(pages)
+
+      assert_equal "page-1", result["hades"][:page_id]
+      assert_equal ["Steam", "Nintendo Switch"], result["hades"][:platforms]
+      assert_equal "hades", result["hades"][:deku_deals_id]
+
+      assert_equal "page-2", result["celeste"][:page_id]
+      assert_equal ["Steam"], result["celeste"][:platforms]
+      assert_nil result["celeste"][:deku_deals_id]
+    end
+
+    def test_games_map_by_name_is_case_insensitive
+      pages = [
+        {
+          "id" => "page-1",
+          "properties" => {
+            "Name" => { "title" => [{ "text" => { "content" => "HADES" } }] },
+            "Platforms" => { "multi_select" => [] },
+            "Deku Deals ID" => { "rich_text" => [] },
+          },
+        },
+      ]
+
+      result = @client.games_map_by_name(pages)
+
+      assert result.key?("hades")
+      refute result.key?("HADES")
+    end
+
+    def test_games_map_by_name_skips_pages_without_name
+      pages = [
+        {
+          "id" => "page-1",
+          "properties" => {
+            "Name" => { "title" => [] },
+            "Platforms" => { "multi_select" => [] },
+            "Deku Deals ID" => { "rich_text" => [] },
+          },
+        },
+      ]
+
+      assert_equal({}, @client.games_map_by_name(pages))
+    end
+
+    def test_games_map_by_name_empty
+      assert_equal({}, @client.games_map_by_name([]))
+    end
+
     # --- parse_release_date ---
 
     def test_parse_release_date_standard_format
