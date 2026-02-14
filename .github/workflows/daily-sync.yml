@@ -1,10 +1,10 @@
-name: Update Gaming Library
+name: Daily Sync
 
 on:
   schedule:
     - cron: '15 10 * * *' # 4:15 A.M. CST in UTC
 
-  workflow_dispatch: # allow manual runs in the GitHub UI
+  workflow_dispatch:
 
 jobs:
   execute:
@@ -18,7 +18,7 @@ jobs:
         with:
           bundler-cache: true
 
-      - name: Run Notion Upserts
+      - name: Run Incremental Sync
         run: bundle exec ruby lib/run.rb
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
