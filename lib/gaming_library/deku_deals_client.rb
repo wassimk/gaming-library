@@ -24,6 +24,8 @@ module GamingLibrary
     def game_details(slug)
       html = fetch_game_details(slug)
       parse_game_details(html)
+    rescue StandardError
+      nil
     end
 
     private

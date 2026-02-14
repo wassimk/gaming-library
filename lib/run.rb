@@ -36,6 +36,9 @@ def main
       notion_client: notion_client,
       full_sync: full_sync,
     ).call
+  rescue StandardError => e
+    $stderr.puts "Deku Deals sync failed: #{e.message}"
+    $stderr.puts e.backtrace.first(5).join("\n")
   end
 end
 

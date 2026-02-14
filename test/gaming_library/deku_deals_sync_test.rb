@@ -207,7 +207,14 @@ module GamingLibrary
     # --- Log summary tests ---
 
     def test_log_summary_shows_incremental_mode
-      deku = StubDekuDealsClient.new(collection: [], collection_details: {})
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Game", slug: "game", added_at: "2025-01-01T00:00:00+00:00" },
+        ],
+        collection_details: {
+          "game" => { name: "Game", platform: "Switch", format: "Digital", image_url: nil },
+        },
+      )
       notion = StubNotionClient.new(pages: [])
 
       DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, output: @output).call
@@ -216,12 +223,29 @@ module GamingLibrary
     end
 
     def test_log_summary_shows_full_mode
-      deku = StubDekuDealsClient.new(collection: [], collection_details: {})
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Game", slug: "game", added_at: "2025-01-01T00:00:00+00:00" },
+        ],
+        collection_details: {
+          "game" => { name: "Game", platform: "Switch", format: "Digital", image_url: nil },
+        },
+      )
       notion = StubNotionClient.new(pages: [])
 
       DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, full_sync: true, output: @output).call
 
       assert_includes @output.string, "Sync mode: full"
+    end
+
+    def test_empty_collection_warns_and_returns_early
+      deku = StubDekuDealsClient.new(collection: [], collection_details: {})
+      notion = StubNotionClient.new(pages: [])
+
+      DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, output: @output).call
+
+      assert_includes @output.string, "no games found in collection"
+      refute_includes @output.string, "Syncing Deku Deals games"
     end
 
     # --- Error handling ---
