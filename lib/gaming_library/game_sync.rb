@@ -9,22 +9,22 @@ module GamingLibrary
 
     def call
       notion_pages = @notion.fetch_games
-      notion_map = @notion.games_map(notion_pages)
+      @notion_map = @notion.games_map(notion_pages)
 
-      log_summary(notion_map)
-      insert_new_games(notion_map)
-      update_existing_games(notion_map)
+      log_summary
+      insert_new_games
+      update_existing_games
     end
 
     private
 
-    def insert_new_games(notion_map)
+    def insert_new_games
       @output.puts "=" * 80
       @output.puts "Inserting new games into Notion"
       @output.puts "=" * 80
 
       @steam.owned_games.each do |game|
-        next if notion_map.key?(game[:steam_id])
+        next if @notion_map.key?(game[:steam_id])
         next if @steam.excluded?(game)
 
         code = @notion.insert_game(game)
@@ -49,7 +49,7 @@ module GamingLibrary
 
       notion_pages = @notion.fetch_games
       notion_map = @notion.games_map(notion_pages)
-      page_id = notion_map[game[:steam_id]]
+      page_id = notion_map[game[:steam_id]]&.fetch(:page_id)
       return if page_id.nil?
 
       @notion.update_game(page_id: page_id, game: game, details: details)
@@ -60,7 +60,7 @@ module GamingLibrary
       @output.puts e.message
     end
 
-    def update_existing_games(notion_map)
+    def update_existing_games
       @output.puts "=" * 80
       if @full_sync
         @output.puts "Full sync: updating all existing games in Notion"
@@ -72,16 +72,16 @@ module GamingLibrary
       @steam.owned_games.each do |game|
         next if @steam.excluded?(game)
 
-        page_id = notion_map[game[:steam_id]]
-        if page_id.nil?
+        notion_data = @notion_map[game[:steam_id]]
+        if notion_data.nil?
           @output.puts "Game does not exist in Notion: #{game[:name]}"
           next
         end
 
         if @full_sync
-          full_update_game(page_id, game)
+          full_update_game(notion_data[:page_id], game)
         else
-          incremental_update_game(page_id, game)
+          incremental_update_game(notion_data, game)
         end
       rescue StandardError => e
         @output.puts "Program error updating Notion for game: #{game[:name]} - #{game[:steam_id]}"
@@ -101,20 +101,32 @@ module GamingLibrary
       sleep 1
     end
 
-    def incremental_update_game(page_id, game)
+    def incremental_update_game(notion_data, game)
       if game[:playtime_2weeks].nil? || game[:playtime_2weeks] == 0
         @output.puts "Skipping #{game[:name]} (no recent playtime)"
         return
       end
 
-      @notion.update_game_playtime(page_id: page_id, game: game)
+      if !playtime_changed?(notion_data, game)
+        @output.puts "Skipping #{game[:name]} (no changes)"
+        return
+      end
+
+      @notion.update_game_playtime(page_id: notion_data[:page_id], game: game)
       @output.puts "Updated playtime for game: #{game[:name]} - #{game[:steam_id]}"
     end
 
-    def log_summary(notion_map)
+    def playtime_changed?(notion_data, game)
+      return true if game[:playtime_forever] > (notion_data[:playtime] || 0)
+
+      steam_date = game[:last_played_date]&.to_date&.to_s
+      steam_date != nil && steam_date != notion_data[:last_played_date]
+    end
+
+    def log_summary
       @output.puts "=" * 80
       @output.puts "Steam games: #{@steam.owned_games.count}"
-      @output.puts "Notion games: #{notion_map.count}"
+      @output.puts "Notion games: #{@notion_map.count}"
       @output.puts "Sync mode: #{@full_sync ? "full" : "incremental"}"
       @output.puts "=" * 80
     end

@@ -9,14 +9,35 @@ module GamingLibrary
 
     # --- games_map ---
 
-    def test_games_map_builds_steam_id_to_page_id_hash
+    def test_games_map_builds_steam_id_to_data_hash
       pages = [
-        { "id" => "page-1", "properties" => { "Steam ID" => { "number" => 123 } } },
-        { "id" => "page-2", "properties" => { "Steam ID" => { "number" => 456 } } },
+        {
+          "id" => "page-1",
+          "properties" => {
+            "Steam ID" => { "number" => 123 },
+            "Playtime (Minutes)" => { "number" => 60 },
+            "Last Played Date" => { "date" => { "start" => "2024-01-15" } },
+          },
+        },
+        {
+          "id" => "page-2",
+          "properties" => {
+            "Steam ID" => { "number" => 456 },
+            "Playtime (Minutes)" => { "number" => nil },
+            "Last Played Date" => { "date" => nil },
+          },
+        },
       ]
 
       result = @client.games_map(pages)
-      assert_equal({ 123 => "page-1", 456 => "page-2" }, result)
+
+      assert_equal "page-1", result[123][:page_id]
+      assert_equal 60, result[123][:playtime]
+      assert_equal "2024-01-15", result[123][:last_played_date]
+
+      assert_equal "page-2", result[456][:page_id]
+      assert_equal 0, result[456][:playtime]
+      assert_nil result[456][:last_played_date]
     end
 
     def test_games_map_empty
