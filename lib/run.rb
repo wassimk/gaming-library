@@ -10,6 +10,11 @@ require_relative "gaming_library/deku_deals_sync"
 def main
   full_sync = ARGV.include?("--full-sync")
 
+  game_filter = nil
+  if (idx = ARGV.index("--game"))
+    game_filter = ARGV[idx + 1]
+  end
+
   steam_client = GamingLibrary::SteamClient.new(
     api_key: ENV["STEAM_API_KEY"],
     user_id: ENV["STEAM_USER_ID"],
@@ -25,9 +30,11 @@ def main
     steam_client: steam_client,
     notion_client: notion_client,
     full_sync: full_sync,
+    game_filter: game_filter,
   ).call
 
-  if ENV["DEKUDEALS_COLLECTION_ID"]
+  skip_deku_deals = game_filter&.match?(/\A\d+\z/)
+  if ENV["DEKUDEALS_COLLECTION_ID"] && !skip_deku_deals
     begin
       deku_deals_client = GamingLibrary::DekuDealsClient.new(
         collection_id: ENV["DEKUDEALS_COLLECTION_ID"],
@@ -36,6 +43,7 @@ def main
         deku_deals_client: deku_deals_client,
         notion_client: notion_client,
         full_sync: full_sync,
+        game_filter: game_filter,
       ).call
     rescue StandardError => e
       $stderr.puts "Deku Deals sync failed: #{e.message}"
