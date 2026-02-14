@@ -93,6 +93,7 @@ module GamingLibrary
     end
 
     def merge_platform(existing, game)
+      return if game[:platform].nil? || game[:platform].strip.empty?
       return if existing[:platforms].include?(game[:platform])
       return if platform_superseded?(existing[:platforms], game[:platform])
 
@@ -109,6 +110,11 @@ module GamingLibrary
     end
 
     def insert_game(game)
+      if game[:platform].nil? || game[:platform].strip.empty?
+        @output.puts "Skipping #{game[:name]}: no platform detected"
+        return
+      end
+
       details = @deku_deals.game_details(game[:slug])
 
       code = @notion.insert_deku_deals_game(game: game, details: details)
@@ -136,6 +142,7 @@ module GamingLibrary
           game: game,
           details: details,
           existing_platforms: existing[:platforms],
+          set_icon: true,
         )
         @output.puts "Updated metadata for: #{game[:name]}"
         sleep 1

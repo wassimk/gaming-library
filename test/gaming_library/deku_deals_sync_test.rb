@@ -148,6 +148,77 @@ module GamingLibrary
       assert_empty notion.inserted_deku_deals_games
     end
 
+    def test_skips_merge_when_platform_is_empty
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Prison Boss VR", slug: "prison-boss-vr", added_at: "2025-01-01T00:00:00+00:00" },
+        ],
+        collection_details: {
+          "prison-boss-vr" => { name: "Prison Boss VR", platform: nil, format: "Digital", image_url: nil },
+        },
+      )
+      notion = StubNotionClient.new(pages: [
+        notion_page(name: "Prison Boss VR", page_id: "page-1", platforms: ["Steam"]),
+      ])
+
+      DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, output: @output).call
+
+      assert_empty notion.updated_deku_deals_games
+    end
+
+    def test_skips_insert_when_platform_is_empty
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Unknown Game", slug: "unknown", added_at: "2025-01-01T00:00:00+00:00" },
+        ],
+        collection_details: {
+          "unknown" => { name: "Unknown Game", platform: nil, format: nil, image_url: nil },
+        },
+      )
+      notion = StubNotionClient.new(pages: [])
+
+      DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, output: @output).call
+
+      assert_empty notion.inserted_deku_deals_games
+      assert_includes @output.string, "Skipping Unknown Game: no platform detected"
+    end
+
+    def test_merge_does_not_set_icon
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Hades", slug: "hades", added_at: "2025-01-01T00:00:00+00:00", format: "digital" },
+        ],
+        collection_details: {
+          "hades" => { name: "Hades", platform: "PS5", format: "Digital", image_url: "https://cdn.dekudeals.com/images/abc/w500.jpg" },
+        },
+      )
+      notion = StubNotionClient.new(pages: [
+        notion_page(name: "Hades", page_id: "page-1", platforms: ["Steam"]),
+      ])
+
+      DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, output: @output).call
+
+      assert_equal false, notion.updated_deku_deals_games.first[:set_icon]
+    end
+
+    def test_full_sync_sets_icon
+      deku = StubDekuDealsClient.new(
+        collection: [
+          { name: "Hades", slug: "hades", added_at: "2025-01-01T00:00:00+00:00", format: "digital" },
+        ],
+        collection_details: {
+          "hades" => { name: "Hades", platform: "Switch", format: "Digital", image_url: "https://cdn.dekudeals.com/images/abc/w500.jpg" },
+        },
+      )
+      notion = StubNotionClient.new(pages: [
+        notion_page(name: "Hades", page_id: "page-1", platforms: ["Nintendo Switch"], deku_deals_id: "hades"),
+      ])
+
+      DekuDealsSync.new(deku_deals_client: deku, notion_client: notion, full_sync: true, output: @output).call
+
+      assert_equal true, notion.updated_deku_deals_games.first[:set_icon]
+    end
+
     def test_maps_platform_names
       deku = StubDekuDealsClient.new(
         collection: [
@@ -355,12 +426,13 @@ module GamingLibrary
         "200"
       end
 
-      def update_deku_deals_game(page_id:, game:, details:, existing_platforms:)
+      def update_deku_deals_game(page_id:, game:, details:, existing_platforms:, set_icon: false)
         @updated_deku_deals_games << {
           page_id: page_id,
           game: game,
           details: details,
           existing_platforms: existing_platforms,
+          set_icon: set_icon,
         }
         {}
       end

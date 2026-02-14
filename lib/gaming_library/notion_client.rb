@@ -148,7 +148,7 @@ module GamingLibrary
       response.code
     end
 
-    def update_deku_deals_game(page_id:, game:, details:, existing_platforms:)
+    def update_deku_deals_game(page_id:, game:, details:, existing_platforms:, set_icon: false)
       properties = {}
 
       merged_platforms = merge_platforms(existing_platforms, game[:platform])
@@ -187,24 +187,16 @@ module GamingLibrary
           properties[:"Release Date"] = { date: { start: release_date.to_s } }
         end
 
-        image_url = details[:image_url] || game[:image_url]
-        if image_url
-          properties[:Icon] = {
-            files: [
-              { name: "logo", type: "external", external: { url: image_url } },
-            ],
-          }
+        if set_icon
+          image_url = details[:image_url] || game[:image_url]
+          if image_url
+            properties[:Icon] = {
+              files: [
+                { name: "logo", type: "external", external: { url: image_url } },
+              ],
+            }
+          end
         end
-      elsif game[:image_url]
-        properties[:Icon] = {
-          files: [
-            {
-              name: "logo",
-              type: "external",
-              external: { url: game[:image_url] },
-            },
-          ],
-        }
       end
 
       body = { properties: properties }
@@ -230,7 +222,9 @@ module GamingLibrary
     }.freeze
 
     def merge_platforms(existing, new_platform)
-      platforms = (existing + [new_platform]).uniq
+      platforms = existing.dup
+      platforms << new_platform if new_platform && !new_platform.strip.empty?
+      platforms.uniq!
 
       PLATFORM_UPGRADES.each do |upgrade, superseded|
         if platforms.include?(upgrade)

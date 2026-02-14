@@ -27,10 +27,16 @@ module GamingLibrary
         next if @notion_map.key?(game[:steam_id])
         next if @steam.excluded?(game)
 
+        details = @steam.game_details(game[:steam_id])
+        if details && details["type"] == "demo"
+          @output.puts "Skipping #{game[:name]} (demo)"
+          next
+        end
+
         code = @notion.insert_game(game)
         if code == "200"
           @output.puts "Added Notion entry for game: #{game[:name]} - #{game[:steam_id]}"
-          backfill_new_game(game)
+          backfill_new_game(game, details)
         else
           @output.puts "API error adding Notion entry for game: #{game[:name]} - #{game[:steam_id]}"
         end
@@ -40,8 +46,8 @@ module GamingLibrary
       end
     end
 
-    def backfill_new_game(game)
-      details = @steam.game_details(game[:steam_id])
+    def backfill_new_game(game, details = nil)
+      details ||= @steam.game_details(game[:steam_id])
       if details.nil?
         @output.puts "Game details API call for #{game[:name]} failed during backfill"
         return
@@ -93,6 +99,11 @@ module GamingLibrary
       details = @steam.game_details(game[:steam_id])
       if details.nil?
         @output.puts "Game details API call for #{game[:name]} failed"
+        return
+      end
+
+      if details["type"] == "demo"
+        @output.puts "Skipping #{game[:name]} (demo)"
         return
       end
 
