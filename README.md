@@ -8,7 +8,23 @@ The script runs on a schedule via GitHub Actions: a quick daily sync for playtim
 
 ### 1. Create a Notion Database
 
-Set up a Notion database with properties for the fields you care about (e.g. Name, Playtime, Genres, Publishers, Release Date). The script will populate them automatically.
+Create a Notion database and add the following properties. The names must match exactly:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| Name | Title | Game name (default title property) |
+| Steam ID | Number | Unique Steam app ID |
+| Playtime (Minutes) | Number | Total playtime from Steam |
+| Last Played Date | Date | When you last played |
+| Platforms | Multi-select | Set to "Steam" automatically |
+| Format | Select | Set to "Digital" automatically |
+| Publishers | Multi-select | Game publishers |
+| Developers | Multi-select | Game developers |
+| Genres | Multi-select | Game genres (Action, RPG, etc.) |
+| Release Date | Date | Game release date |
+| Icon | Files & media | Game cover art |
+
+You can add any additional properties you want for your own use (e.g. Status, Rating, Notes) — the script will ignore them.
 
 ### 2. Configure Secrets
 
