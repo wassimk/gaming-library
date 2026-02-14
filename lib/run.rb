@@ -59,13 +59,6 @@ def parse_fetch_steam_games_response(response)
   end
 end
 
-def fetch_deku_games
-  uri = URI("https://www.dekudeals.com/collection/#{ENV["DEKU_DEALS_COLLECTION_ID"]}.json")
-  response = Net::HTTP.get(uri)
-
-  JSON.parse(response)
-end
-
 def fetch_notion_games
   uri = URI("https://api.notion.com/v1/databases/#{ENV["NOTION_DATABASE_ID"]}/query")
   header = {
@@ -153,7 +146,6 @@ def insert_notion_database(steam_games, notion_games)
   rescue StandardError => e
     puts "Program error adding Notion entry for game: #{game[:name]} - #{game[:steam_id]}"
     puts e.message
-    binding.break
   end
 end
 
@@ -195,15 +187,6 @@ def update_notion_database(steam_games, notion_games)
     icon_url = game[:icon_url]
     logo_url = details["capsule_imagev5"]
 
-    # ap "#{game[:name]} - #{game[:steam_id]}"
-    # ap icon_url
-    # ap logo_url
-    # ap publishers&.join(", ")
-    # ap developers&.join(", ")
-    # ap genres&.join(", ")
-    # ap release_date.to_s + " from " + details["release_date"]["date"]
-    # ap last_played_date
-
     properties = {}
     if !publishers.nil?
       properties[:Publishers] = {
@@ -224,7 +207,6 @@ def update_notion_database(steam_games, notion_games)
     if !icon_url.nil?
       properties["Icon".to_sym] = {
         files: [
-          # { name: "icon", type: "external", external: { url: icon_url } },
           { name: "logo", type: "external", external: { url: logo_url } },
         ],
       }
@@ -261,13 +243,11 @@ def update_notion_database(steam_games, notion_games)
       puts JSON.parse(request.body)
       puts "API error updating Notion for game: #{game[:name]} - #{game[:steam_id]}"
       puts response.body
-      binding.break
     end
     sleep 1
   rescue StandardError => e
     puts "Program error updating Notion for game: #{game[:name]} - #{game[:steam_id]}"
     puts e.message
-    binding.break
   end
 end
 
