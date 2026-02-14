@@ -53,7 +53,7 @@ If you track console games (Switch, PS5, PS4, Xbox) via a [Deku Deals](https://w
 
 ### Additional Setup
 
-1. Add a **Deku Deals ID** property (Rich text) to your Notion database. This stores the game slug from Deku Deals.
+1. Add a **Deku Deals ID** property (Text) to your Notion database. This stores the game slug from Deku Deals.
 
 2. Add the `DEKUDEALS_COLLECTION_ID` secret to GitHub Actions. You can find your collection ID in the URL when viewing your collection on Deku Deals (e.g. `https://www.dekudeals.com/collection/abc123` → `abc123`).
 

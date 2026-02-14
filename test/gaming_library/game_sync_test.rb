@@ -59,6 +59,20 @@ module GamingLibrary
       assert_empty notion.inserted_games
     end
 
+    def test_skips_demo_games_on_insert
+      games = [{ name: "Stellar Blade\u2122 Demo", steam_id: 100, playtime_forever: 0, playtime_2weeks: 0 }]
+
+      steam = StubSteamClient.new(games: games, details: {
+        100 => { "type" => "demo", "publishers" => ["Test"] },
+      })
+      notion = StubNotionClient.new(pages: [])
+
+      GameSync.new(steam_client: steam, notion_client: notion, output: @output).call
+
+      assert_empty notion.inserted_games
+      assert_includes @output.string, "Skipping Stellar Blade\u2122 Demo (demo)"
+    end
+
     # --- Full sync update tests ---
 
     def test_full_sync_updates_existing_game_with_details
@@ -91,6 +105,21 @@ module GamingLibrary
       GameSync.new(steam_client: steam, notion_client: notion, full_sync: true, output: @output).call
 
       assert_equal 2, notion.updated_games.length
+    end
+
+    def test_full_sync_skips_demo_games
+      games = [{ name: "Stellar Blade\u2122 Demo", steam_id: 100, playtime_forever: 5, playtime_2weeks: 0 }]
+      notion_pages = [notion_page(steam_id: 100, page_id: "page-1", playtime: 5)]
+
+      steam = StubSteamClient.new(games: games, details: {
+        100 => { "type" => "demo", "publishers" => ["Test"], "developers" => ["Test"] },
+      })
+      notion = StubNotionClient.new(pages: notion_pages)
+
+      GameSync.new(steam_client: steam, notion_client: notion, full_sync: true, output: @output).call
+
+      assert_empty notion.updated_games
+      assert_includes @output.string, "Skipping Stellar Blade\u2122 Demo (demo)"
     end
 
     def test_full_sync_skips_excluded_games_on_update
