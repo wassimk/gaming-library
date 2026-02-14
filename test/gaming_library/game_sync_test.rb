@@ -339,7 +339,7 @@ module GamingLibrary
 
     private
 
-    def notion_page(steam_id:, page_id:, playtime: 0, last_played_date: nil)
+    def notion_page(steam_id:, page_id:, playtime: 0, last_played_date: nil, platforms: ["Steam"])
       date_value = last_played_date ? { "start" => last_played_date } : nil
       {
         "id" => page_id,
@@ -347,6 +347,7 @@ module GamingLibrary
           "Steam ID" => { "number" => steam_id },
           "Playtime (Minutes)" => { "number" => playtime },
           "Last Played Date" => { "date" => date_value },
+          "Platforms" => { "multi_select" => platforms.map { |p| { "name" => p } } },
         },
       }
     end
@@ -412,6 +413,7 @@ module GamingLibrary
             page_id: p["id"],
             playtime: props.dig("Playtime (Minutes)", "number") || 0,
             last_played_date: props.dig("Last Played Date", "date", "start"),
+            platforms: (props.dig("Platforms", "multi_select") || []).map { |pl| pl["name"] },
           }
           [steam_id, data]
         }.to_h
@@ -432,8 +434,8 @@ module GamingLibrary
         "200"
       end
 
-      def update_game(page_id:, game:, details:)
-        @updated_games << { page_id: page_id, game: game, details: details }
+      def update_game(page_id:, game:, details:, existing_platforms: [])
+        @updated_games << { page_id: page_id, game: game, details: details, existing_platforms: existing_platforms }
         {}
       end
 
