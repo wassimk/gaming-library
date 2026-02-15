@@ -6,7 +6,7 @@ The script runs on a schedule via GitHub Actions: a quick daily sync for playtim
 
 ![Notion Gaming Library](docs/notion-gaming-library.png)
 
-## Setup
+## 📦 Setup
 
 ### 1. Create a Notion Database
 
@@ -49,7 +49,7 @@ Two GitHub Actions workflows handle everything. See [`.github/workflows/`](.gith
 
 Both can be triggered manually from the **Actions** tab whenever you want.
 
-## Optional: Deku Deals Integration
+## 🎮 Optional: Deku Deals Integration
 
 If you track console games (Switch, PS5, PS4, Xbox) via a [Deku Deals](https://www.dekudeals.com) collection, you can optionally sync those too. This is entirely opt-in — the script works fine with just Steam.
 
@@ -70,7 +70,7 @@ If you track console games (Switch, PS5, PS4, Xbox) via a [Deku Deals](https://w
 - You can manually set a Deku Deals ID on any Notion entry to explicitly link it to a Deku Deals game.
 - Cover art from Deku Deals is used for the Icon property.
 
-## Running Locally
+## 💻 Running Locally
 
 You can also run the script on your machine with a `.env` file containing the same variables listed above.
 
@@ -80,7 +80,7 @@ bundle exec ruby lib/run.rb            # daily sync
 bundle exec ruby lib/run.rb --full-sync # full metadata refresh
 ```
 
-## Claude Code Skills
+## 🤖 Claude Code Skills
 
 These [skills](https://docs.anthropic.com/en/docs/claude-code/skills) automate common library management tasks when using [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview).
 
@@ -88,7 +88,7 @@ These [skills](https://docs.anthropic.com/en/docs/claude-code/skills) automate c
 
 - **`/add-quest-vr-game`** — Add Meta Quest VR games to the library. Accepts comma-separated game names (e.g. `/add-quest-vr-game Beat Saber, SUPERHOT VR`), searches for cover art, confirms with you, and inserts each game with platform "Meta Quest" and format "Digital".
 
-## Development
+## 🔧 Development
 
 ```shell
 bundle exec rake test
