@@ -21,7 +21,7 @@ module GamingLibrary
         body = {}
         body[:start_cursor] = start_cursor if start_cursor
 
-        data = post("/v1/databases/#{@database_id}/query", body)
+        data = post("/v1/data_sources/#{data_source_id}/query", body)
         all_results.concat(data["results"])
         has_more = data["has_more"]
         start_cursor = data["next_cursor"]
@@ -37,7 +37,7 @@ module GamingLibrary
           number: { equals: steam_id },
         },
       }
-      data = post("/v1/databases/#{@database_id}/query", body)
+      data = post("/v1/data_sources/#{data_source_id}/query", body)
       data["results"]
     end
 
@@ -48,7 +48,7 @@ module GamingLibrary
           title: { contains: name },
         },
       }
-      data = post("/v1/databases/#{@database_id}/query", body)
+      data = post("/v1/data_sources/#{data_source_id}/query", body)
       data["results"]
     end
 
@@ -68,7 +68,7 @@ module GamingLibrary
 
     def insert_game(game)
       body = {
-        parent: { database_id: @database_id },
+        parent: { data_source_id: data_source_id },
         properties: {
           Name: { title: [{ text: { content: game[:name] } }] },
           "Playtime (Minutes)": { number: game[:playtime_forever] },
@@ -166,7 +166,7 @@ module GamingLibrary
         }
       end
 
-      body = { parent: { database_id: @database_id }, properties: properties }
+      body = { parent: { data_source_id: data_source_id }, properties: properties }
       response = post_raw("/v1/pages", body)
       response.code
     end
@@ -258,6 +258,17 @@ module GamingLibrary
 
     private
 
+    def data_source_id
+      data_source_id ||= fetch_data_source_id
+    end
+
+    def fetch_data_source_id
+      response = get("/v1/databases/#{@database_id}")
+      data = JSON.parse(response.body)
+      # Get the first data source (for single-source databases)
+      data["data_sources"].first["id"]
+    end
+
     PLATFORM_UPGRADES = {
       "Nintendo Switch 2" => "Nintendo Switch",
     }.freeze
@@ -342,7 +353,7 @@ module GamingLibrary
       {
         "Authorization" => "Bearer #{@api_key}",
         "Content-Type" => "application/json",
-        "Notion-Version" => "2022-06-28",
+        "Notion-Version" => "2025-09-03",
       }
     end
 
@@ -368,6 +379,14 @@ module GamingLibrary
       request.body = body.to_json
       response = http.request(request)
       JSON.parse(response.body)
+    end
+
+    def get(path)
+      uri = URI("#{BASE_URL}#{path}")
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true
+      request = Net::HTTP::Get.new(uri.path, headers)
+      http.request(request)
     end
   end
 end
